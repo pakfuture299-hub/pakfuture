@@ -7,6 +7,15 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 
+    /* The widget body is transparent: only the bubble (and the chat window
+       when opened) are visible, so the iframe overlays the storefront
+       without a visible box. */
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+    }
+
     /* Floating launcher bubble, bottom-right. */
     #jpc-launcher {
       position: fixed;
@@ -164,14 +173,37 @@
       var inputEl = document.getElementById('jpc-input');
       var sendBtn = document.getElementById('jpc-send');
 
+      // Tell the parent page how big we need the iframe to be, so the whole
+      // chat window fits without the parent clipping it. The parent listens
+      // for messages of type "jpc-resize" (see the embed snippet).
+      function postSize() {
+        var msg = { type: 'jpc-resize' };
+        if (windowEl.classList.contains('open')) {
+          msg.width = 340;
+          msg.height = 500;
+        } else {
+          msg.width = 60;
+          msg.height = 60;
+        }
+        if (window.parent !== window) {
+          window.parent.postMessage(msg, '*');
+        }
+      }
+
       // --- Toggle ---
       launcher.addEventListener('click', function () {
         windowEl.classList.add('open');
         inputEl.focus();
+        postSize();
       });
       closeBtn.addEventListener('click', function () {
         windowEl.classList.remove('open');
+        postSize();
       });
+
+      // Also announce the initial size once loaded (so a freshly embedded
+      // widget starts as just the bubble).
+      setTimeout(postSize, 500);
 
       // --- Render helpers ---
       function addMessage(text, who) {
