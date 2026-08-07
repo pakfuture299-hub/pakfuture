@@ -16,11 +16,12 @@
       background: transparent;
     }
 
-    /* Floating launcher bubble, bottom-right. */
+    /* Floating launcher bubble, bottom-left (bottom-right is occupied by
+       the store's Tidio chat widget — we do not touch that one). */
     #jpc-launcher {
       position: fixed;
       bottom: 20px;
-      right: 20px;
+      left: 20px;
       width: 60px;
       height: 60px;
       border-radius: 50%;
@@ -43,7 +44,7 @@
     #jpc-window {
       position: fixed;
       bottom: 90px;
-      right: 20px;
+      left: 20px;
       width: 340px;
       max-width: calc(100vw - 40px);
       height: 480px;
@@ -179,11 +180,13 @@
       function postSize() {
         var msg = { type: 'jpc-resize' };
         if (windowEl.classList.contains('open')) {
-          msg.width = 340;
-          msg.height = 500;
+          msg.width = 360;
+          msg.height = 520;
+          msg.side = 'left';
         } else {
-          msg.width = 60;
-          msg.height = 60;
+          msg.width = 100;
+          msg.height = 100;
+          msg.side = 'left';
         }
         if (window.parent !== window) {
           window.parent.postMessage(msg, '*');
