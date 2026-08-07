@@ -191,22 +191,49 @@
       }
 
       // Discover the backend from a stable pointer file (updated by the VPS
-      // whenever the tunnel URL changes). Works when the widget is served
-      // from any origin (GitHub raw, localhost, or the tunnel itself).
-      var POINTER_URL = 'https://raw.githubusercontent.com/pakfuture299-hub/pakfuture/main/public/current-tunnel.txt';
+      // whenever the tunnel URL changes). Multiple sources are tried so a
+      // stale CDN cache never strands the widget; the candidate is pinged
+      // before use so a dead tunnel is skipped.
+      var POINTER_URLS = [
+        'https://pakfuture299-hub.github.io/pakfuture/public/current-tunnel.txt',
+        'https://raw.githubusercontent.com/pakfuture299-hub/pakfuture/main/public/current-tunnel.txt'
+      ];
       var cachedApiBase = null;
+
+      async function fetchPointerText() {
+        for (var i = 0; i < POINTER_URLS.length; i++) {
+          try {
+            var res = await fetch(POINTER_URLS[i], { cache: 'no-store' });
+            if (!res.ok) continue;
+            var text = await res.text();
+            if (text && /^https?:\/\//.test(text.trim())) return text.trim();
+          } catch (err) { /* try next source */ }
+        }
+        return '';
+      }
+
+      async function pingBackend(base) {
+        try {
+          var ctrl = new AbortController();
+          var t = setTimeout(function () { ctrl.abort(); }, 6000);
+          var res = await fetch(base + '/health', { signal: ctrl.signal });
+          clearTimeout(t);
+          return res.ok;
+        } catch (err) { return false; }
+      }
 
       async function getApiBase() {
         if (cachedApiBase) return cachedApiBase;
-        try {
-          var res = await fetch(POINTER_URL, { cache: 'no-store' });
-          var text = await res.text();
-          var base = text.trim().replace(/\/+$/, '');
-          if (base && /^https?:\/\//.test(base)) {
+        var text = await fetchPointerText();
+        if (text) {
+          var base = text.replace(/\/+$/, '');
+          if (await pingBackend(base)) {
             cachedApiBase = base;
             return base;
           }
-        } catch (err) { /* fall through to same-origin */ }
+        }
+        // Fallback: same origin (works when the widget is served by the
+        // chatbot itself, e.g. localhost or the tunnel origin).
         return window.location.origin;
       }
 
