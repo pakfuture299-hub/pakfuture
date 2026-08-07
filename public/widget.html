@@ -190,6 +190,26 @@
         });
       }
 
+      // Discover the backend from a stable pointer file (updated by the VPS
+      // whenever the tunnel URL changes). Works when the widget is served
+      // from any origin (GitHub raw, localhost, or the tunnel itself).
+      var POINTER_URL = 'https://raw.githubusercontent.com/pakfuture299-hub/pakfuture/main/public/current-tunnel.txt';
+      var cachedApiBase = null;
+
+      async function getApiBase() {
+        if (cachedApiBase) return cachedApiBase;
+        try {
+          var res = await fetch(POINTER_URL, { cache: 'no-store' });
+          var text = await res.text();
+          var base = text.trim().replace(/\/+$/, '');
+          if (base && /^https?:\/\//.test(base)) {
+            cachedApiBase = base;
+            return base;
+          }
+        } catch (err) { /* fall through to same-origin */ }
+        return window.location.origin;
+      }
+
       // --- Send ---
       async function send() {
         var text = inputEl.value.trim();
@@ -198,9 +218,7 @@
         inputEl.value = '';
         sendBtn.disabled = true;
         typingEl.style.display = 'block';
-        // Use the same origin the widget was served from (works on localhost
-        // and behind the VPS reverse proxy; survives the Shopify iframe embed).
-        var apiBase = window.location.origin;
+        var apiBase = await getApiBase();
         try {
           var res = await fetch(apiBase + '/api/chat', {
             method: 'POST',
