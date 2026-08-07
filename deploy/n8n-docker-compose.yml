@@ -1,0 +1,82 @@
+# n8n self-hosted on VPS — Docker Compose (n8n + PostgreSQL)
+#
+# Usage:
+#   cp deploy/n8n-docker-compose.yml docker-compose.yml
+#   edit the secrets marked <<CHANGE-ME>> below
+#   docker compose up -d
+#
+# Afterwards, put this Caddyfile in place to expose n8n over HTTPS:
+#   n8n.yourdomain.com {
+#     reverse_proxy 127.0.0.1:5678
+#   }
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    restart: unless-stopped
+    ports:
+      # Bind to localhost only — Caddy is the only public entry point.
+      - "127.0.0.1:5678:5678"
+    environment:
+      # --- Public URL (must match your real domain) ---
+      - N8N_HOST=n8n.yourdomain.com
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://n8n.yourdomain.com/
+
+      # --- Login protection ---
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=<<CHANGE-ME-ADMIN-PASSWORD>>
+
+      # Encryption key: set ONCE, keep it forever. If it changes, n8n can
+      # no longer decrypt your stored Google/Telegram credentials.
+      - N8N_ENCRYPTION_KEY=<<CHANGE-ME-RANDOM-64-CHARS>>
+
+      # --- Telegram (used by the "Notify Admin Group" node in the workflow) ---
+      # Bot token from @BotFather; chat ID of the private admin group.
+      - TELEGRAM_BOT_TOKEN=<<CHANGE-ME-TELEGRAM-BOT-TOKEN>>
+      - TELEGRAM_ADMIN_CHAT_ID=<<CHANGE-ME-ADMIN-CHAT-ID>>
+
+      # --- Database (PostgreSQL) ---
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=<<CHANGE-ME-DB-PASSWORD>>
+
+      # --- High-traffic execution pruning (1,000+ chats/day) ---
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=72
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=10000
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+      - EXECUTIONS_DATA_SAVE_ON_PROGRESS=false
+      - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=false
+      - EXECUTIONS_MODE=regular
+
+      # --- Locale ---
+      - GENERIC_TIMEZONE=Asia/Karachi
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=<<CHANGE-ME-DB-PASSWORD>>
+      - POSTGRES_DB=n8n
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  n8n_data:
+  postgres_data:

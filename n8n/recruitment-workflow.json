@@ -1,0 +1,219 @@
+{
+  "name": "Recruitment — Candidate Intake (Telegram → Sheets → Admin Group)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recruitment",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f01",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-320, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "name-required",
+              "leftValue": "={{ $json.name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "phone-required",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "telegram-required",
+              "leftValue": "={{ $json.telegram }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f02",
+      "name": "Validate Required Fields",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-140, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize the incoming payload before it is stored.\n// - trim strings\n// - fall back to the webhook timestamp when missing\n// - derive the spreadsheet columns: Timestamp, Name, Phone, Telegram, Source, Status\nconst item = $input.first().json;\n\nconst now = new Date();\nconst ts = (item.timestamp && !isNaN(Date.parse(item.timestamp)))\n  ? new Date(item.timestamp).toISOString()\n  : now.toISOString();\n\nconst source = item.source || 'Shopify Chatbot';\n\nreturn [{\n  json: {\n    timestamp: ts,\n    name: String(item.name || '').trim(),\n    phone: String(item.phone || '').trim(),\n    telegram: String(item.telegram || '').trim(),\n    source: source,\n    status: item.status || 'New'\n  }\n}];",
+        "language": "javaScript"
+      },
+      "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f03",
+      "name": "Normalize & Prepare Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [40, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1RydPOjz_FZwr_GCISb2lrwQ42iejL3-U7ha86AChwFo",
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "name": "={{ $json.name }}",
+            "phone": "={{ $json.phone }}",
+            "telegram": "={{ $json.telegram }}",
+            "source": "={{ $json.source }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f04",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_ADMIN_CHAT_ID }}",
+        "text": "🆕 New Candidate\n\nName: {{ $json.name }}\nPhone: {{ $json.phone }}\nTelegram: {{ $json.telegram }}\n\nSubmitted: {{ $json.timestamp }}",
+        "additionalFields": {}
+      },
+      "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f05",
+      "name": "Notify Admin Group",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recruitment",
+        "options": {}
+      },
+      "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f06",
+      "name": "Webhook Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [580, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recruitment",
+        "responseCode": 400,
+        "responseBody": "{\n  \"ok\": false,\n  \"error\": \"Missing required fields: name, phone, telegram\"\n}",
+        "options": {}
+      },
+      "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f07",
+      "name": "Reject Invalid Payload",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-140, 480]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Prepare Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Invalid Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Prepare Row": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Admin Group": {
+      "main": [
+        [
+          {
+            "node": "Webhook Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "job-portal-recruitment"
+  }
+}

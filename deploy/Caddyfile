@@ -1,0 +1,13 @@
+# Caddy reverse proxy — one VPS serving both services over HTTPS.
+# Install Caddy:  sudo apt install caddy
+# Put this file at /etc/caddy/Caddyfile and run:  sudo systemctl reload caddy
+
+# n8n — the recruitment workflow (import the workflow at n8n.yourdomain.com)
+n8n.yourdomain.com {
+    reverse_proxy 127.0.0.1:5678
+}
+
+# Chatbot backend — receives the Telegram webhook (see TELEGRAM_WEBHOOK_URL)
+chatbot.yourdomain.com {
+    reverse_proxy 127.0.0.1:3000
+}
