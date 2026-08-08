@@ -39,21 +39,31 @@ Visitor on Shopify storefront
 ```
 .
 ├── .env.example              # every variable, documented
+├── scripts/
+│   ├── scrape-store.js       # fetch live store → knowledge/store-scrape.md
+│   ├── generate-pdf.js       # markdown → knowledge/PDFs/store-content.pdf
+│   └── check-env.js          # boot-time env validation
+├── knowledge/
+│   ├── store-scrape.md       # source of truth (scraped store content)
+│   └── PDFs/store-content.pdf  # the PDF deliverable
 ├── src/
 │   ├── server.js             # boot: config → HTTP → shutdown
 │   ├── app.js                # Express app (health, /api/chat, /widget)
 │   ├── config/index.js       # env config with fail-fast required vars
-│   ├── knowledge/base.js     # ⭐ THE "PDF" — store facts, jobs, FAQ, guardrails
+│   ├── knowledge/base.js     # ⭐ curated rules, pitch, bilingual flow copy
+│   ├── knowledge/loader.js   # loads store-scrape.md for the bot at boot
 │   ├── services/
-│   │   ├── chat.js           # storefront chat engine → maps intents to Telegram link
+│   │   ├── flow.js           # ⭐ guided apply state machine (transport-agnostic)
+│   │   ├── chat.js           # storefront chat → flow (session by sessionId)
+│   │   ├── conversation.js   # Telegram webhook → flow (session by chat id)
 │   │   ├── openai.js         # OpenAI intent classification + grounded answers
-│   │   └── telegram.js       # legacy Telegram bot client (optional)
-│   ├── store/index.js        # in-memory rate limiting
+│   │   ├── submission.js     # candidate → n8n (duplicate detection)
+│   │   └── n8n.js            # async delivery to n8n with retries
+│   ├── store/index.js        # in-memory sessions + rate limiting
 │   └── utils/                # validation, http retry, logger
 ├── public/widget.js          # the storefront widget injector (loaded by the Shopify page)
 ├── public/widget.html        # local preview page for the widget (npm run dev → /widget)
 ├── deploy/vps-deploy.sh      # Ubuntu VPS: systemd + Caddy + Node
-├── scripts/check-env.js      # boot-time env validation
 └── tests/                    # node:test unit + smoke tests
 ```
 
@@ -61,26 +71,39 @@ Visitor on Shopify storefront
 
 ## Conversation flow
 
-1. **Open** — visitor clicks the floating bubble on the Shopify site; a friendly welcome appears with the Telegram invite link.
-2. **Ask anything** — the visitor types a question. OpenAI classifies the intent (`greeting`, `apply`, `provide_info`, `telegram_help`, `out_of_scope`).
-3. **Reply + link** — the bot answers knowledge-based questions (jobs, how to apply, earnings) and then hands out the invite link:
-   - **Greeting** → welcome + link
-   - **Wants to apply** → link (that's the whole hand-off)
-   - **Info question** → grounded answer + link
-   - **Telegram help** → link
-   - **Out of scope** → friendly redirect to the website + link
+The widget now runs a **guided apply flow** (a multi-step conversation, not just a link hand-off):
 
-The only thing the bot ever directs the visitor toward is the Telegram invite link configured in `INVITE_LINK` (default `https://t.me/+923244362726`). Nothing is collected on the site — the hiring team takes over inside Telegram.
+1. **Open** — visitor clicks the floating bubble; a friendly greeting appears.
+2. **Pitch** — the bot explains the team hires daily and that all work happens on Telegram (including the "why Telegram, not WhatsApp" explanation).
+3. **Ask: do you have Telegram?**
+   - **No** → the bot guides setup step-by-step: Proton VPN link → Telegram app link → a YouTube setup tutorial → then proceeds.
+   - **Yes** → proceeds straight away.
+4. **Collect details** — Name → Contact Number → Telegram username/number, each validated, with a confirm step before submitting.
+5. **Submit** — the application is POSTed to n8n → Google Sheets, and the team contacts the candidate on Telegram.
+
+**Bilingual**: replies are English by default, but if the candidate writes in Roman Urdu/Hinglish (e.g. "haan main apply karna chahata hoon") the bot switches to Hinglish and stays in that language for the rest of the flow.
+
+**Questions about jobs** (e.g. "what does video watch and earn involve?") are answered from the knowledge base — the full scraped storefront content — so the bot can walk a candidate through any of the 10 job categories in detail. Anything out of scope gets a friendly redirect to the website.
 
 ### Out-of-scope guardrail
 
-Everything **not** in the knowledge base — refunds, shipping, orders, discounts, unrelated topics — gets a friendly redirect to the website plus the Telegram link, never an improvised answer.
+Everything **not** in the knowledge base — refunds, shipping, orders, discounts, unrelated topics — gets a friendly redirect to the website, never an improvised answer.
 
 ---
 
-## Legacy: n8n / Telegram-bot intake (no longer required)
+## PDF knowledge deliverable
 
-The original design collected candidate details (name → phone → Telegram) inside a Telegram bot and POSTed them to n8n → Google Sheets. That whole path is now **optional** — the widget only hands out the invite link. The old files remain in the repo (`n8n/`, `google/`, `src/services/conversation.js`, `src/services/submission.js`) for reference, but nothing in the widget flow uses them.
+The store's content (homepage + all 10 job pages) is scraped from the live storefront and turned into a PDF. The **same source** feeds the bot, so the answers always match the PDF.
+
+```bash
+npm run build:knowledge   # scrape the store → generate the PDF
+```
+
+Outputs:
+- `knowledge/store-scrape.md` — the source-of-truth markdown (loaded by the bot at boot).
+- `knowledge/PDFs/store-content.pdf` — the PDF deliverable.
+
+`pdfkit` is a devDependency only — the runtime/deploy is untouched. To regenerate after the store changes: `npm run build:knowledge`, commit the two artifacts, push.
 
 ---
 

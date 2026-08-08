@@ -74,9 +74,14 @@ function createApp() {
     res.sendFile(path.join(__dirname, '..', 'public', 'widget.html'));
   });
 
-  // Storefront chat API — the widget posts visitor messages here.
+  // Storefront chat API — the widget posts visitor messages here. The widget
+  // may include a client sessionId so the guided apply flow can keep state.
   app.post('/api/chat', async (req, res) => {
     const message = req.body?.message;
+    const sessionId =
+      typeof req.body?.sessionId === 'string' && req.body.sessionId
+        ? req.body.sessionId.slice(0, 128)
+        : undefined;
     if (typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ ok: false, error: 'message is required' });
     }
@@ -86,8 +91,8 @@ function createApp() {
       return res.status(429).json({ ok: false, error: 'Too many requests' });
     }
     try {
-      const reply = await getReply(message);
-      return res.json({ ok: true, reply });
+      const { reply, sessionId: echoed, submitted } = await getReply(message, sessionId);
+      return res.json({ ok: true, reply, sessionId: echoed, submitted: !!submitted });
     } catch (err) {
       logger.error('Chat API failed', { err: err.message });
       return res.status(500).json({ ok: false, error: 'Internal error' });

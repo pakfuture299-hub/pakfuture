@@ -12,12 +12,18 @@
     "dev": "node --watch src/server.js",
     "test": "node --test \"tests/*.test.js\"",
     "lint": "node --check src/server.js && node --check src/app.js",
-    "check": "node scripts/check-env.js"
+    "check": "node scripts/check-env.js",
+    "scrape": "node scripts/scrape-store.js",
+    "pdf": "node scripts/generate-pdf.js",
+    "build:knowledge": "npm run scrape && npm run pdf"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "helmet": "^7.1.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "pdfkit": "^0.19.1"
+  }
 }

@@ -240,7 +240,6 @@ const FAQ = [
 /**
  * Telegram help: guide the candidate through VPN + Telegram installation,
  * then hand them off with a single direct link to our Telegram chat.
- * Nothing else — no tutorial links, no further steps.
  */
 const TELEGRAM_HELP = {
   intro:
@@ -248,7 +247,8 @@ const TELEGRAM_HELP = {
   steps: [
     '1️⃣ If Telegram is blocked in your country, first install Proton VPN (free) 👉 https://protonvpn.com/download',
     '2️⃣ Install Telegram on your phone or PC 👉 https://telegram.org/dl',
-    '3️⃣ Now join us directly on Telegram 👉 https://t.me/+923244362726',
+    '3️⃣ New to Telegram? Watch this quick setup tutorial 👉 https://www.youtube.com/watch?v=ZYkBtYMLlM4',
+    '4️⃣ Now join us directly on Telegram 👉 https://t.me/+923244362726',
   ],
   closing: '',
 };
@@ -300,6 +300,77 @@ const RULES = {
   telegramHelpIntro: TELEGRAM_HELP.intro,
 };
 
+/**
+ * The "why Telegram, not WhatsApp" pitch delivered early in the apply flow.
+ * The Hinglish version is the owner's original copy; the English one is the
+ * equivalent for candidates who write in English.
+ */
+const PITCH = {
+  hi: [
+    `Hamara poora system aur department Telegram par shifted hai. Agar aap ko high-level earnings aur jobs chahiye, toh aap ko Telegram account banana parega.`,
+    `Agar aap ko Telegram ka idea nahi hai, toh main wazeh kar doon ke Telegram ek bohot hi professional business platform hai. Yahan bari-bari companies aur professional departments shifted hain, jin ke bade Channels aur Groups par hazaron nahi balkey lakhon job holders add hain. Hamara system bhi bilkul aisa hi hai.`,
+    `Agar aap ke zehan mein aata hai ke WhatsApp par yeh kaam kyun nahi ho sakta, toh main batata chaloon ke WhatsApp heavy business operations ke liye design hi nahi hua. WhatsApp bade departments aur un ke heavy workload ko handle nahi kar sakta aur us ka server/account ban ho jata hai.`,
+  ].join('\n\n'),
+  en: [
+    `Our entire system and department has moved to Telegram. If you want high-level earnings and jobs, you'll need a Telegram account.`,
+    `If you're not familiar with Telegram, it's a very professional business platform. Big companies and professional departments run there, with thousands — not hundreds — of job holders in their channels and groups. Our system works the same way.`,
+    `You might wonder why this can't be done on WhatsApp. WhatsApp simply isn't designed for heavy business operations — it can't handle large departments and heavy workloads, and accounts/servers get banned.`,
+  ].join('\n\n'),
+};
+
+/**
+ * Hinglish (Roman Urdu) variants of the flow rules, used when the candidate
+ * writes in Roman Urdu/Hinglish. Keys mirror RULES.
+ */
+const RULES_HI = {
+  greeting: [
+    `👋 ${STORE.name} mein khush aamdeed!`,
+    `Hum rozana online ghar-baithay jobs ke liye bharti karte hain. 🎉`,
+    `📢 Hamari saari communication Telegram par hoti hai, is liye aap ko Telegram account ki zaroorat hogi application complete karne aur task details lene ke liye.`,
+    `Neeche apni details share karein aur hum shuru karte hain!`,
+  ].join('\n\n'),
+  pitchIntro:
+    'Pehle aap ko ek baat samjha doon — ye kaam kahan aur kaise hota hai:',
+  askHasTelegram: 'Kya aap ka Telegram account pehle se bana hua hai? (Haan / Nahi)',
+  noTelegramGuide: [
+    `Koi masla nahi! Main aap ko step-by-step guide karta hoon.`,
+    `1️⃣ Agar Telegram aap ke mulk mein block hai, toh pehle Proton VPN (free) install karein 👉 https://protonvpn.com/download`,
+    `2️⃣ Telegram app install karein 👉 https://telegram.org/dl`,
+    `3️⃣ Setup tutorial dekhein 👉 https://www.youtube.com/watch?v=ZYkBtYMLlM4`,
+  ].join('\n'),
+  askName: 'Apna poora naam share karein taake application shuru ho. 📝',
+  askPhone:
+    'Bohat acha! Ab apna active contact number bhejein (sirf digits, masalan 03001234567). 📱',
+  askTelegram:
+    'Almost ho gaya! Apna Telegram username (masalan @username) YA Telegram par registered mobile number bhejein (masalan 03001234567). ✈️',
+  nameInvalid:
+    'Mazrat, ye naam sahi nahi laga. Letters mein poora naam bhejein (2–80 characters). 📝',
+  phoneInvalid:
+    'Ye number sahi nahi laga. Sirf digits mein valid number bhejein (masalan 03001234567, +923001234567). 📱',
+  telegramInvalid:
+    'Ye Telegram username/number sahi nahi laga. @ se shuru hone wala username (masalan @john) ya registered number bhejein. ✈️',
+  confirmHeader: 'Apni details confirm karein: ✅',
+  confirmPrompt:
+    'Submit karne ke liye ✅ Haan likhein, ya change karne ke liye field ka naam batayein (Naam / Phone / Telegram).',
+  submitted: [
+    `🎉 Shukriya! Aap ki application mil gayi hai.`,
+    `Hamari team jald hi aap ko Telegram par next steps aur task details bhejegi.`,
+    `Yakeeni banayein ke aap ka Telegram ready hai taake hamara message miss na ho!`,
+  ].join('\n\n'),
+  duplicate:
+    'Aap ki application humein pehle hi mil chuki hai. Hamari team jald hi Telegram par rabta karegi — dobara apply karne ki zaroorat nahi. 🙏',
+  throttled:
+    'Aap bohat tezi se messages bhej rahe hain. Zara aaram se — main madad kar raha hoon. 🙏',
+  error:
+    'Hamari taraf se kuch masla ho gaya. Ek minute baad dobara try karein — ya team ko Telegram par directly contact karein. 🙏',
+  outOfScopeRedirect:
+    'Main sirf hamari jobs aur applications mein madad kar sakta hoon. Kisi aur cheez ke liye website par tafseelat dekhein 👉 ' +
+    STORE.url,
+  telegramHelpIntro: TELEGRAM_HELP.intro,
+  done:
+    'Aap ki application already submit ho chuki hai — hamari team jald hi Telegram par rabta karegi. 🎉',
+};
+
 module.exports = {
   STORE,
   JOBS,
@@ -307,4 +378,6 @@ module.exports = {
   TELEGRAM_HELP,
   REDIRECT_GUARDRAIL,
   RULES,
+  RULES_HI,
+  PITCH,
 };

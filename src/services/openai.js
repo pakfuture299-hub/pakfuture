@@ -18,6 +18,7 @@
 const config = require('../config');
 const { withTimeout } = require('../utils/http');
 const { STORE, JOBS, FAQ } = require('../knowledge/base');
+const { loadStoreContent } = require('../knowledge/loader');
 const logger = require('../utils/logger');
 
 /** Intent schema the model must return. */
@@ -54,11 +55,17 @@ FAQ:
 ${FAQ.map((f) => `Q: ${f.q}\nA: ${f.a}`).join('\n')}
 `;
 
+// The full scraped storefront content — the same source the PDF is built
+// from. Lets the bot walk a candidate through every job in detail. Loaded at
+// boot; empty string if the scrape artifact is missing (falls back to the
+// curated content above).
+const STORE_CONTENT = loadStoreContent();
+
 const GROUNDING_PROMPT = `You are the recruitment assistant for ${STORE.name} (${STORE.url}). You hire daily for online work-from-home jobs; all communication happens on Telegram.
 
 RULES:
 1. Answer ONLY from the knowledge provided below. Never invent facts, prices, guarantees, or timelines that are not in it.
-2. Keep answers short, friendly and professional (2-4 sentences).
+2. Keep answers short, friendly and professional (2-4 sentences). If the candidate asks about a specific job, walk them through what that job involves, its requirements and how to apply — all of that is in the knowledge.
 3. If a question is NOT answerable from the knowledge, reply with exactly:
    OUT_OF_SCOPE
    (the system will then redirect the candidate to the website).
@@ -70,6 +77,9 @@ RULES:
 
 KNOWLEDGE (this is the complete PDF of the website):
 ${KNOWLEDGE_COMPACT}
+
+FULL STOREFRONT CONTENT (also part of the PDF — use it for detailed job walkthroughs):
+${STORE_CONTENT}
 `;
 
 /**

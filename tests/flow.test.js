@@ -1,0 +1,187 @@
+/**
+ * Tests for the guided apply flow (src/services/flow.js).
+ * Runs offline: OpenAI and submission are stubbed.
+ */
+
+process.env.NODE_ENV = 'test';
+process.env.OPENAI_API_KEY = 'test-key';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+// Stub the AI + submission so the state machine runs deterministically.
+const Module = require('module');
+const originalLoad = Module._load;
+let intentResult = { intent: 'greeting', telegramHelpRequested: false };
+let groundedResult = { text: 'stubbed' };
+const submissions = [];
+
+Module._load = function (request, parent, isMain) {
+  if (request === './openai' || request === '../openai') {
+    return {
+      classifyIntent: async () => intentResult,
+      askGrounded: async () => groundedResult,
+    };
+  }
+  if (request === './submission' || request === '../submission') {
+    return {
+      submitCandidate: (session) => {
+        submissions.push({ ...session });
+        return { ok: true, duplicate: false };
+      },
+    };
+  }
+  return originalLoad.apply(this, arguments);
+};
+
+const { createSession, processMessage, detectLanguage, isYes, isNo } = require('../src/services/flow');
+const { TELEGRAM_HELP, PITCH } = require('../src/knowledge/base');
+
+function fresh() {
+  return createSession();
+}
+
+test('detectLanguage: english stays en', () => {
+  assert.equal(detectLanguage('hello, how do i apply for a job?'), 'en');
+  assert.equal(detectLanguage('what is the salary'), 'en');
+});
+
+test('detectLanguage: hinglish markers switch to hi', () => {
+  assert.equal(detectLanguage('haan main apply karna chahata hoon'), 'hi');
+  assert.equal(detectLanguage('aap ki jobs kya hain'), 'hi');
+  assert.equal(detectLanguage('nahi, mujhe telegram nahi pata'), 'hi');
+});
+
+test('isYes / isNo parse plain answers', () => {
+  assert.equal(isYes('haan'), true);
+  assert.equal(isYes('yes'), true);
+  assert.equal(isYes('ji haan'), true);
+  assert.equal(isNo('nahi'), true);
+  assert.equal(isNo('no'), true);
+  assert.equal(isYes('nahi'), false);
+  assert.equal(isNo('haan'), false);
+});
+
+test('greeting starts the flow with pitch + has-telegram question', async () => {
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'hi');
+  assert.equal(s.state, 'awaiting_telegram_has');
+  assert.match(reply, /Telegram/);
+  assert.match(reply, /PITCH|Telegram/);
+  // The English pitch contains the WhatsApp explanation.
+  assert.match(reply, /WhatsApp/);
+});
+
+test('Hinglish greeting gets Hinglish pitch + question', async () => {
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'haan, main apply karna chahata hoon');
+  assert.equal(s.lang, 'hi');
+  assert.equal(s.state, 'awaiting_telegram_has');
+  assert.match(reply, /Telegram account pehle se bana/);
+});
+
+test('no-telegram path: guide + video link + askName', async () => {
+  const session = fresh();
+  await processMessage(session, 'hi');
+  const { reply, session: s } = await processMessage(session, 'nahi');
+  assert.equal(s.state, 'awaiting_name');
+  assert.match(reply, /protonvpn\.com/);
+  assert.match(reply, /telegram\.org\/dl/);
+  assert.match(reply, /youtube\.com\/watch/);
+  assert.match(reply, /naam|name/i);
+});
+
+test('yes-telegram path: skips guide, asks name', async () => {
+  const session = fresh();
+  await processMessage(session, 'hi');
+  const { reply, session: s } = await processMessage(session, 'haan');
+  assert.equal(s.state, 'awaiting_name');
+  assert.doesNotMatch(reply, /protonvpn/);
+});
+
+test('full happy path collects name, phone, telegram, confirms, submits', async () => {
+  const session = fresh();
+  await processMessage(session, 'hi'); // → awaiting_telegram_has
+  await processMessage(session, 'haan'); // → awaiting_name
+  let r = await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  assert.equal(r.session.state, 'awaiting_phone');
+  r = await processMessage(session, '03001234567'); // → awaiting_telegram
+  assert.equal(r.session.state, 'awaiting_telegram');
+  r = await processMessage(session, '@ali_r'); // → awaiting_confirm
+  assert.equal(r.session.state, 'awaiting_confirm');
+  assert.match(r.reply, /Ali Raza/);
+  assert.match(r.reply, /03001234567/);
+  r = await processMessage(session, 'yes'); // → done + submitted
+  assert.equal(r.session.state, 'done');
+  assert.equal(r.submitted, true);
+  assert.equal(submissions.length, 1);
+  assert.equal(submissions[0].name, 'Ali Raza');
+  assert.equal(submissions[0].phone, '03001234567');
+  assert.equal(submissions[0].telegram, '@ali_r');
+});
+
+test('invalid name / phone / telegram are rejected and re-asked', async () => {
+  const session = fresh();
+  await processMessage(session, 'hi');
+  await processMessage(session, 'haan');
+  let r = await processMessage(session, '123');
+  assert.equal(r.session.state, 'awaiting_name');
+  r = await processMessage(session, 'Ali Raza');
+  r = await processMessage(session, 'abc'); // invalid phone
+  assert.equal(r.session.state, 'awaiting_phone');
+  r = await processMessage(session, '03001234567');
+  r = await processMessage(session, 'not-a-tg'); // invalid telegram
+  assert.equal(r.session.state, 'awaiting_telegram');
+});
+
+test('field edit on confirm resets that field', async () => {
+  const session = fresh();
+  await processMessage(session, 'hi');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567');
+  await processMessage(session, '@ali_r');
+  let r = await processMessage(session, 'name'); // edit name
+  assert.equal(r.session.state, 'awaiting_name');
+  assert.equal(r.session.name, null);
+});
+
+test('telegram help intent interrupts and returns links', async () => {
+  const session = fresh();
+  intentResult = { intent: 'telegram_help', telegramHelpRequested: true };
+  const { reply } = await processMessage(session, 'telegram nahi pata kya hai');
+  assert.match(reply, /protonvpn\.com/);
+  intentResult = { intent: 'greeting', telegramHelpRequested: false };
+});
+
+test('out_of_scope intent redirects', async () => {
+  const session = fresh();
+  intentResult = { intent: 'out_of_scope', telegramHelpRequested: false };
+  const { reply } = await processMessage(session, 'refund kya policy hai');
+  assert.match(reply, /website/);
+});
+
+test('done state returns soft reply without resubmitting', async () => {
+  intentResult = { intent: 'greeting', telegramHelpRequested: false }; // reset from earlier test
+  const session = fresh();
+  await processMessage(session, 'hi');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567');
+  await processMessage(session, '@ali_r');
+  await processMessage(session, 'yes');
+  const before = submissions.length;
+  const { reply, submitted } = await processMessage(session, 'hello?');
+  assert.equal(submissions.length, before);
+  assert.equal(submitted, undefined);
+  assert.match(reply, /submitted|submit/i);
+});
+
+test('TELEGRAM_HELP includes the video link', () => {
+  assert.ok(TELEGRAM_HELP.steps.some((s) => /youtube\.com\/watch/.test(s)));
+});
+
+test('PITCH includes the WhatsApp-vs-Telegram explanation', () => {
+  assert.match(PITCH.hi, /WhatsApp/);
+  assert.match(PITCH.en, /WhatsApp/);
+});

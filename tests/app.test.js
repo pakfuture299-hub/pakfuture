@@ -20,7 +20,11 @@ const openaiStub = {
   askGrounded: async () => ({ text: 'stubbed' }),
 };
 const chatStub = {
-  getReply: async () => 'stubbed reply with link https://t.me/+923244362726',
+  getReply: async (message, sessionId) => ({
+    reply: 'stubbed reply with link https://t.me/+923244362726',
+    sessionId,
+    submitted: false,
+  }),
 };
 const telegramStub = {
   sendMessage: async () => true,
@@ -31,7 +35,14 @@ const Module = require('module');
 const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === '../services/openai' || request === './openai') return openaiStub;
-  if (request === '../services/chat' || request === './chat') return chatStub;
+  if (
+    request === '../services/chat' ||
+    request === './chat' ||
+    request === './services/chat' ||
+    request.endsWith('/services/chat')
+  ) {
+    return chatStub;
+  }
   if (request === '../services/telegram' || request === './telegram') return telegramStub;
   return originalLoad.apply(this, arguments);
 };
@@ -132,6 +143,25 @@ test('POST /api/chat returns a reply with the Telegram link', async () => {
     const body = await res.json();
     assert.equal(body.ok, true);
     assert.match(body.reply, /https:\/\/t\.me\/\+923244362726/);
+  } finally {
+    await close(server);
+  }
+});
+
+test('POST /api/chat echoes the client sessionId', async () => {
+  const app = createApp();
+  const server = await listen(app);
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'hi', sessionId: 'jpc-test-123' }),
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.sessionId, 'jpc-test-123');
+    assert.equal(body.submitted, false);
   } finally {
     await close(server);
   }

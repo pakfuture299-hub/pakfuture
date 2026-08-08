@@ -125,6 +125,24 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
+  // --- Session: a client-generated id so the backend can hold the guided
+  //     apply flow across messages. Persisted per tab in sessionStorage. ---
+  var SESSION_KEY = 'jpc-session-id';
+  function getSessionId() {
+    try {
+      var id = window.sessionStorage.getItem(SESSION_KEY);
+      if (!id) {
+        id =
+          (window.crypto && window.crypto.randomUUID && window.crypto.randomUUID()) ||
+          'jpc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+        window.sessionStorage.setItem(SESSION_KEY, id);
+      }
+      return id;
+    } catch (err) {
+      return null; // storage blocked (private mode) → stateless fallback
+    }
+  }
+
   // --- Backend discovery: ping the tunnel; fall back to a same-origin
   //     call so a dead tunnel shows a clear error instead of failing
   //     silently. ---
@@ -163,10 +181,13 @@
     typingEl.style.display = 'block';
     try {
       var apiBase = await getApiBase();
+      var body = { message: text };
+      var sessionId = getSessionId();
+      if (sessionId) body.sessionId = sessionId;
       var res = await fetch(apiBase + '/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify(body),
       });
       var data = await res.json();
       addMessage(data.reply || 'Sorry, something went wrong. Please try again.', 'bot');
