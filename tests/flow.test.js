@@ -225,6 +225,9 @@ test('out-of-context question mid-flow redirects (awaiting_interest)', async () 
   const session = fresh();
   await processMessage(session, 'tell me about video watch and earn'); // → awaiting_interest
   setIntent('out_of_scope');
+  // The defensive path consults the knowledge base; a genuine off-topic
+  // question gets OUT_OF_SCOPE from the model → redirect.
+  groundedResult = { outOfScope: true };
   const { reply, session: s } = await processMessage(session, 'what is the weather in lahore?');
   assert.match(reply, /website/);
   assert.equal(s.state, 'awaiting_interest'); // flow preserved, not pushed forward
@@ -235,6 +238,7 @@ test('out-of-context question mid-flow redirects (awaiting_apply_decision)', asy
   const session = fresh();
   await processMessage(session, 'i want to apply'); // → awaiting_apply_decision
   setIntent('out_of_scope');
+  groundedResult = { outOfScope: true };
   const { reply, session: s } = await processMessage(session, 'who won the world cup?');
   assert.match(reply, /website/);
   assert.equal(s.state, 'awaiting_apply_decision');
@@ -392,6 +396,157 @@ test('done state: new message resets to a fresh conversation (no duplicate submi
   assert.equal(submitted, undefined);
   assert.equal(s.state, 'idle'); // reset to fresh conversation
   assert.match(reply, /Welcome|hello|hi/i); // short greeting again, not "already submitted"
+});
+
+// ---- Ruthless failure matrix: every "user said X, bot did Y" complaint ----
+
+test('RUTHLESS: "i am no longer interested" while asked for phone closes politely', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  const { reply, session: s } = await processMessage(session, "i'm no longer interested");
+  assert.equal(s.state, 'done');
+  assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
+  assert.equal(s.phone, null); // not polluted
+});
+
+test('RUTHLESS: "i am no longer interested" while asked for telegram closes', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567'); // → awaiting_telegram
+  const { reply, session: s } = await processMessage(session, 'im no longer interested now');
+  assert.equal(s.state, 'done');
+  assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
+});
+
+test('RUTHLESS: "cancel" during name collection backs out', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes'); // → awaiting_name
+  const { reply, session: s } = await processMessage(session, 'cancel please');
+  assert.equal(s.state, 'done');
+  assert.equal(s.name, null);
+});
+
+test('RUTHLESS: plain "no" while asked for phone closes, not loop', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  const { reply, session: s } = await processMessage(session, 'no');
+  assert.equal(s.state, 'done');
+  assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
+});
+
+test('RUTHLESS: plain "no" at confirm closes, not re-ask', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567');
+  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  const before = submissions.length;
+  const { reply, session: s } = await processMessage(session, 'no');
+  assert.equal(s.state, 'done');
+  assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
+  assert.equal(submissions.length, before); // nothing new submitted
+});
+
+test('RUTHLESS: "amazon fba" alone (out_of_scope classifier) is answered, not redirected', async () => {
+  setIntent('out_of_scope'); // simulate the classifier failing on a bare job name
+  groundedResult = { outOfScope: true }; // model would also say out of scope
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'amazon fba');
+  assert.match(reply, /Amazon FBA/); // deterministic matcher wins
+  assert.doesNotMatch(reply, /can only|sirf hamari|website/i);
+  assert.equal(s.state, 'awaiting_interest');
+  assert.equal(s.job, 'Amazon FBA');
+});
+
+test('RUTHLESS: every job name resolves via matchJob', () => {
+  const { matchJob } = require('../src/services/flow');
+  const cases = [
+    ['video watch and earn', 'Video Watch and Earn'],
+    ['video watch', 'Video Watch and Earn'],
+    ['assignment writing', 'Assignment Writing'],
+    ['assignment', 'Assignment Writing'],
+    ['content writing', 'Content Writing'],
+    ['graphic designer', 'Graphic Designer'],
+    ['graphic design', 'Graphic Designer'],
+    ['travel and booking support', 'Travel and Booking Support'],
+    ['travel booking', 'Travel and Booking Support'],
+    ['video editing job', 'Video Editing Job'],
+    ['video editing', 'Video Editing Job'],
+    ['digital marketing', 'Digital Marketing'],
+    ['marketing', 'Digital Marketing'],
+    ['data entry', 'Data Entry'],
+    ['data typing', 'Data Entry'],
+    ['amazon virtual assistant', 'Amazon Virtual Assistant'],
+    ['amazon fba', 'Amazon FBA'],
+    ['fba', 'Amazon FBA'],
+  ];
+  for (const [input, expected] of cases) {
+    const m = matchJob(input);
+    assert.ok(m, `"${input}" should match a job`);
+    assert.equal(m.name, expected, `"${input}" should map to ${expected}`);
+  }
+});
+
+test('RUTHLESS: misclassified knowledge questions still get an answer, not redirect', async () => {
+  setIntent('out_of_scope'); // classifier fails
+  groundedResult = { text: 'We offer daily and weekly earning opportunities with secure, timely payouts in PKR.' };
+  const session = fresh();
+  const { reply } = await processMessage(session, 'how much can i earn?');
+  // Even with the classifier wrong, the knowledge-question matcher routes it
+  // to the grounded answer — never a redirect.
+  assert.doesNotMatch(reply, /can only|sirf hamari|website/i);
+  assert.match(reply, /earning|earn/i);
+});
+
+test('RUTHLESS: "no" at interest prompt closes politely, not pitch', async () => {
+  setIntent('provide_info');
+  groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
+  const session = fresh();
+  await processMessage(session, 'tell me about video watch and earn'); // → awaiting_interest
+  setIntent('greeting');
+  const { reply, session: s } = await processMessage(session, 'no');
+  assert.equal(s.state, 'done');
+  assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
+});
+
+test('RUTHLESS: telegram help request mid-flow gets setup guide, not validation error', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567'); // → awaiting_telegram
+  setIntent('greeting'); // classifier fails to see the help request
+  const { reply, session: s } = await processMessage(session, 'mujhe telegram nahi pata');
+  assert.match(reply, /protonvpn\.com/); // setup guide shown
+  assert.equal(s.state, 'awaiting_telegram'); // flow preserved after help
+});
+
+test('RUTHLESS: universal cancel works from awaiting_confirm', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567');
+  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  const before = submissions.length;
+  const { reply, session: s } = await processMessage(session, 'i dont want to apply anymore');
+  assert.equal(s.state, 'done');
+  assert.equal(submissions.length, before); // nothing new submitted
 });
 
 test('TELEGRAM_HELP includes the video link', () => {

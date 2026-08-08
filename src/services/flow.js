@@ -111,6 +111,47 @@ function isNo(text) {
 }
 
 /**
+ * True when the candidate is backing out / cancelling the application —
+ * "i'm no longer interested", "cancel", "chhod do", "band karo", "not
+ * interested" etc. Distinct from a plain "no" so a terse "no" to a yes/no
+ * prompt still flows normally.
+ */
+function isCancelling(text) {
+  const t = normalizeText(text).toLowerCase();
+  return /(no longer|not (?:interested|now)|cancel|abort|stop|quit|skip|leave|drop|forget it|chhod|chor do|band karo|nahi karna|nhi karna|nahi chahiye|nhi chahiye|nahi karna chahta|nhi karna chahta|nahi karni|nhi karni|apply nahi|nahi apply|i don'?t want|i dont want|mat karo|mat karna)/.test(t);
+}
+
+/**
+ * True when the candidate is asking about Telegram setup / says they don't
+ * have Telegram — checked deterministically so a misclassified help request
+ * during the flow still gets the setup guide instead of a validation error.
+ */
+function asksTelegramHelp(text) {
+  const t = normalizeText(text).toLowerCase();
+  return /(telegram (nahi|nhi|how|kya|install|download|setup|banao|banana|kaise|kya hai|aata|aati)|nahi (hai|pata).*telegram|nhi (hai|pata).*telegram|telegram.*(nahi|nhi)|how (to )?(install|use|join|make).*telegram|telegram account)/.test(t);
+}
+
+/**
+ * True when the message names one of our jobs — used to force a job answer
+ * even when the classifier says out_of_scope or greeting.
+ */
+function namesJob(text) {
+  return matchJob(text) !== null;
+}
+
+/**
+ * True when the candidate is asking a general knowledge question that the
+ * FAQ covers (earnings, fees, timing, trust, who can apply, etc.) — used so
+ * a misclassified FAQ question still gets a grounded answer, never a
+ * redirect.
+ */
+const FAQ_QUESTION_RE = /(earn|earning|salary|payment|pay|fee|fees|register|registration|investment|trusted|trust|scam|legit|student|housewife|students|housewives|hour|hours|time|timing|work from home|online|age|experience|qualification|laptop|computer|how (to )?apply|apply (karna|karne)|kya (hai|hoga)|kaise (hota|hogga)|kitna|kitni|kab)/;
+function asksKnowledgeQuestion(text) {
+  const t = normalizeText(text).toLowerCase();
+  return FAQ_QUESTION_RE.test(t);
+}
+
+/**
  * Deterministic sentiment / small-talk detection. Runs BEFORE any AI call so
  * "how are you", "thanks", "bye" etc. always get a warm reply — even when
  * OpenAI is slow or down (the widget previously showed "something went wrong"
@@ -170,16 +211,16 @@ function looksLikeQuestion(text) {
  * Returns the matched job object or null.
  */
 const JOB_ALIASES = [
-  { job: JOBS[0], keys: ['video watch', 'video earn', 'watch and earn', 'watch video', 'watch ads', 'ad watching', 'ads watching'] },
+  { job: JOBS[0], keys: ['video watch', 'video earn', 'watch and earn', 'watch video', 'watch ads', 'ad watching', 'ads watching', 'video wala', 'video wali', 'video dekho'] },
   { job: JOBS[1], keys: ['assignment'] },
   { job: JOBS[2], keys: ['content writ', 'content'] },
   { job: JOBS[3], keys: ['graphic', 'designer', 'design'] },
-  { job: JOBS[4], keys: ['travel', 'booking'] },
-  { job: JOBS[5], keys: ['video edit', 'video editor', 'editing'] },
-  { job: JOBS[6], keys: ['digital marketing', 'marketing'] },
-  { job: JOBS[7], keys: ['data entry', 'data typing', 'typing'] },
-  { job: JOBS[8], keys: ['virtual assistant', 'amazon va', 'amazon virtual'] },
-  { job: JOBS[9], keys: ['amazon fba', 'fba'] },
+  { job: JOBS[4], keys: ['travel', 'booking', 'travel booking'] },
+  { job: JOBS[5], keys: ['video edit', 'video editor', 'editing', 'video editing'] },
+  { job: JOBS[6], keys: ['digital marketing', 'marketing', 'marketing job'] },
+  { job: JOBS[7], keys: ['data entry', 'data typing', 'typing', 'data'] },
+  { job: JOBS[8], keys: ['virtual assistant', 'amazon va', 'amazon virtual', 'amazon assistant', 'va job'] },
+  { job: JOBS[9], keys: ['amazon fba', 'fba', 'amazon'] },
 ];
 
 function matchJob(text) {
@@ -292,6 +333,18 @@ async function answerQuestion(session, message) {
 }
 
 /**
+ * Defensive fallback: when the classifier says out_of_scope (or greeting) but
+ * the message clearly names a job or asks a knowledge-base question, still
+ * answer it instead of redirecting. Returns the answer or null.
+ */
+async function defensiveAnswer(session, message) {
+  if (namesJob(message) || asksKnowledgeQuestion(message) || looksLikeQuestion(message)) {
+    return answerQuestion(session, message);
+  }
+  return null;
+}
+
+/**
  * Handle one message for a session. Pure-ish: mutates and returns the session
  * alongside the reply, so the caller decides where to persist it.
  * @returns {Promise<{reply: string, session: object, submitted?: boolean}>}
@@ -303,6 +356,21 @@ async function processMessage(session, message) {
   // Cheap offline guardrail first (no AI call for obvious off-topic).
   if (isRedirectTrigger(text)) {
     return { reply: rulesFor(session).outOfScopeRedirect, session };
+  }
+
+  // Universal "I'm out" — a candidate who backs out at ANY point (even mid
+  // field collection) gets a polite close and a done state, never another
+  // field prompt. This is the escape hatch for every state.
+  if (isCancelling(text)) {
+    session.state = 'done';
+    return { reply: notInterestedReply(session), session };
+  }
+
+  // Universal Telegram-help fallback — checked before the model so a
+  // misclassified "telegram nahi pata" during the flow never lands in a
+  // validation-error loop.
+  if (asksTelegramHelp(text)) {
+    return { reply: telegramHelpReply(session), session };
   }
 
   // Language detection — re-run on every message so a candidate who switches
@@ -383,7 +451,21 @@ async function processMessage(session, message) {
           session.state = 'awaiting_interest';
         }
       } else {
-        reply = rulesFor(session).outOfScopeRedirect;
+        // Classifier said out_of_scope, but if the message names a real job
+        // or asks a knowledge-base question, still answer it (never redirect
+        // a legitimate job question).
+        const answer = await defensiveAnswer(session, message);
+        if (answer === null) {
+          reply = rulesFor(session).outOfScopeRedirect;
+        } else if (answer.applyFlow) {
+          reply = pitchAndAskReply(session);
+          session.state = 'awaiting_apply_decision';
+        } else if (answer.telegramHelp) {
+          reply = telegramHelpReply(session);
+        } else {
+          reply = answer + '\n\n' + rulesFor(session).interestPrompt;
+          session.state = 'awaiting_interest';
+        }
       }
       return { reply, session };
     }
@@ -391,7 +473,21 @@ async function processMessage(session, message) {
     case 'awaiting_interest': {
       // Candidate just answered a job question; they may ask more or show intent.
       if (intent.intent === 'out_of_scope') {
-        return { reply: rulesFor(session).outOfScopeRedirect, session };
+        // If it names a real job or asks a knowledge question, answer it —
+        // only a genuinely off-topic message gets the redirect.
+        const answer = await defensiveAnswer(session, message);
+        if (answer === null) return { reply: rulesFor(session).outOfScopeRedirect, session };
+        if (answer.applyFlow) {
+          session.state = 'awaiting_apply_decision';
+          return { reply: pitchAndAskReply(session), session };
+        }
+        if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
+        return { reply: answer + '\n\n' + rulesFor(session).interestPrompt, session };
+      }
+      // "no" to the interest prompt → polite close, not the pitch.
+      if (isNo(text)) {
+        session.state = 'done';
+        return { reply: notInterestedReply(session), session };
       }
       if (intent.intent === 'apply') {
         session.state = 'awaiting_apply_decision';
@@ -432,9 +528,14 @@ async function processMessage(session, message) {
         session.state = 'done';
         return { reply: notInterestedReply(session), session };
       }
-      // A clear out-of-context question while waiting for yes/no → redirect.
+      // A clear out-of-context question while waiting for yes/no — but a real
+      // job name or knowledge question is still answered, not redirected.
       if (intent.intent === 'out_of_scope') {
-        return { reply: rulesFor(session).outOfScopeRedirect, session };
+        const answer = await defensiveAnswer(session, message);
+        if (answer === null) return { reply: rulesFor(session).outOfScopeRedirect, session };
+        if (answer.applyFlow) return { reply: pitchAndAskReply(session), session };
+        if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
+        return { reply: answer + '\n\n' + rulesFor(session).applyAsk, session };
       }
       // A follow-up question while waiting for yes/no ("konsi jobs hain?")
       // should be answered, not absorbed into the pitch or repeated ask.
@@ -484,6 +585,11 @@ async function processMessage(session, message) {
     }
 
     case 'awaiting_phone': {
+      // A plain "no" while being asked for the number = backing out.
+      if (isNo(text)) {
+        session.state = 'done';
+        return { reply: notInterestedReply(session), session };
+      }
       const raw = extractFieldAnswer(message, 'phone');
       if (raw === EMPTY_ANSWER_SENTINEL || !isValidPhone(raw)) {
         return { reply: rulesFor(session).phoneInvalid, session };
@@ -494,6 +600,11 @@ async function processMessage(session, message) {
     }
 
     case 'awaiting_telegram': {
+      // A plain "no" while being asked for the Telegram handle = backing out.
+      if (isNo(text)) {
+        session.state = 'done';
+        return { reply: notInterestedReply(session), session };
+      }
       const raw = extractFieldAnswer(message, 'telegram');
       if (raw === EMPTY_ANSWER_SENTINEL || !isValidTelegram(raw)) {
         return { reply: rulesFor(session).telegramInvalid, session };
@@ -540,6 +651,11 @@ async function processMessage(session, message) {
         session.state = 'awaiting_telegram';
         return { reply: rulesFor(session).askTelegram, session };
       }
+      // A plain "no" to "confirm?" = not submitting after all → polite close.
+      if (isNo(text)) {
+        session.state = 'done';
+        return { reply: notInterestedReply(session), session };
+      }
       return { reply: rulesFor(session).confirmPrompt, session };
     }
 
@@ -560,4 +676,14 @@ async function processMessage(session, message) {
   }
 }
 
-module.exports = { processMessage, createSession, detectLanguage, detectSentiment, isYes, isNo };
+module.exports = {
+  processMessage,
+  createSession,
+  detectLanguage,
+  detectSentiment,
+  isYes,
+  isNo,
+  isCancelling,
+  asksTelegramHelp,
+  matchJob,
+};
