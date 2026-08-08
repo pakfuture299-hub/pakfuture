@@ -193,7 +193,7 @@ async function processMessage(session, message) {
         reply = pitchAndAskReply(session);
         session.state = 'awaiting_apply_decision';
       } else if (intent.intent === 'provide_info') {
-        const answer = await askGrounded(message);
+        const answer = await askGrounded(message, session.lang);
         if (answer.outOfScope) {
           reply = rulesFor(session).outOfScopeRedirect;
         } else if (answer.applyFlow) {
@@ -219,7 +219,7 @@ async function processMessage(session, message) {
         return { reply: pitchAndAskReply(session), session };
       }
       if (intent.intent === 'provide_info') {
-        const answer = await askGrounded(message);
+        const answer = await askGrounded(message, session.lang);
         if (answer.outOfScope) return { reply: rulesFor(session).outOfScopeRedirect, session };
         if (answer.applyFlow) {
           session.state = 'awaiting_apply_decision';
@@ -317,7 +317,12 @@ async function processMessage(session, message) {
     }
 
     case 'done': {
-      return { reply: rulesFor(session).done || RULES.done || RULES.submitted, session };
+      // A completed applicant may come back with a new question or just say
+      // hi again. Treat the message like a fresh conversation (reset to
+      // idle), while submission-level duplicate detection still protects the
+      // sheet if they re-apply with the same details.
+      session.state = 'idle';
+      return processMessage(session, message);
     }
 
     default: {

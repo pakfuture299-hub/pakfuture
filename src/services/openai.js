@@ -75,6 +75,8 @@ RULES:
    TELEGRAM_HELP
 6. For greetings and small talk, reply briefly in a friendly way.
 
+LANGUAGE: Reply in the same language the candidate uses. If they write in English, answer in English. If they write in Roman Urdu / Hinglish (e.g. "video watch and earn kya hai?"), answer in friendly Roman Urdu / Hinglish, not English. Match their language.
+
 KNOWLEDGE (this is the complete PDF of the website):
 ${KNOWLEDGE_COMPACT}
 
@@ -164,10 +166,16 @@ async function classifyIntent(message) {
  * Grounded answering: the model can only use the knowledge base.
  * Returns { text } or { outOfScope: true } or { applyFlow: true } or
  * { telegramHelp: true } sentinels handled by the conversation engine.
+ * @param {string} message the candidate's message
+ * @param {'en'|'hi'} [lang] detected language — nudges the model to reply in kind
  */
-async function askGrounded(message) {
+async function askGrounded(message, lang = 'en') {
   try {
-    const raw = await generate(GROUNDING_PROMPT, message, 0.3);
+    const userPrompt =
+      lang === 'hi'
+        ? `${message}\n\n(Reply in Roman Urdu / Hinglish, not English.)`
+        : message;
+    const raw = await generate(GROUNDING_PROMPT, userPrompt, 0.3);
     const trimmed = raw.trim();
     if (trimmed.toUpperCase().startsWith('OUT_OF_SCOPE')) return { outOfScope: true };
     if (trimmed.toUpperCase().startsWith('APPLY_FLOW')) return { applyFlow: true };

@@ -186,7 +186,7 @@ test('out_of_scope intent redirects', async () => {
   assert.match(reply, /website/);
 });
 
-test('done state returns soft reply without resubmitting', async () => {
+test('done state: new message resets to a fresh conversation (no duplicate submit)', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'i want to apply');
@@ -197,10 +197,11 @@ test('done state returns soft reply without resubmitting', async () => {
   await processMessage(session, 'yes');
   const before = submissions.length;
   setIntent('greeting');
-  const { reply, submitted } = await processMessage(session, 'hello?');
+  const { reply, session: s, submitted } = await processMessage(session, 'hello?');
   assert.equal(submissions.length, before);
   assert.equal(submitted, undefined);
-  assert.match(reply, /received|submitted|application/i);
+  assert.equal(s.state, 'idle'); // reset to fresh conversation
+  assert.match(reply, /Welcome|hello|hi/i); // short greeting again, not "already submitted"
 });
 
 test('TELEGRAM_HELP includes the video link', () => {
