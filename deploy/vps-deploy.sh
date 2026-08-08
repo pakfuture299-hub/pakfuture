@@ -80,3 +80,24 @@ sudo systemctl restart job-portal-chatbot
 # ---------------------------------------------------------------------------
 curl http://localhost:3000/health
 # Optional: UptimeRobot / Cronitor hitting https://chatbot.yourdomain.com/health
+
+# ---------------------------------------------------------------------------
+# 7) When the Cloudflare tunnel restarts (trycloudflare URLs are ephemeral)
+# ---------------------------------------------------------------------------
+# The widget talks to the backend through the tunnel. On a VPS reboot or a
+# `cloudflared` restart the https://...trycloudflare.com URL changes, so the
+# widget must be pointed at the new one:
+#
+#   1. Restart the tunnel and copy the new URL:
+#        cloudflared tunnel --url http://localhost:3000
+#   2. Verify it serves the API:
+#        curl https://<new-url>.trycloudflare.com/health
+#   3. Update the API_BASE constant at the top of public/widget.js
+#      (and public/widget.html) to the new URL.
+#   4. Commit + push to main — GitHub Pages redeploys public/ automatically
+#      (~90 seconds), and the storefront picks up the new widget.
+#
+# The widget pings /health before trusting the URL, so until step 3 is done
+# it shows a clear "couldn't reach the server" error instead of failing
+# silently.
+# ---------------------------------------------------------------------------

@@ -174,39 +174,14 @@
       var inputEl = document.getElementById('jpc-input');
       var sendBtn = document.getElementById('jpc-send');
 
-      // Tell the parent page how big we need the iframe to be, so the whole
-      // chat window fits without the parent clipping it. The parent listens
-      // for messages of type "jpc-resize" (see the embed snippet).
-      function postSize() {
-        var msg = { type: 'jpc-resize' };
-        if (windowEl.classList.contains('open')) {
-          msg.width = 360;
-          msg.height = 520;
-          msg.side = 'left';
-        } else {
-          msg.width = 100;
-          msg.height = 100;
-          msg.side = 'left';
-        }
-        if (window.parent !== window) {
-          window.parent.postMessage(msg, '*');
-        }
-      }
-
       // --- Toggle ---
       launcher.addEventListener('click', function () {
         windowEl.classList.add('open');
         inputEl.focus();
-        postSize();
       });
       closeBtn.addEventListener('click', function () {
         windowEl.classList.remove('open');
-        postSize();
       });
-
-      // Also announce the initial size once loaded (so a freshly embedded
-      // widget starts as just the bubble).
-      setTimeout(postSize, 500);
 
       // --- Render helpers ---
       function addMessage(text, who) {
@@ -225,27 +200,10 @@
         });
       }
 
-      // Discover the backend from a stable pointer file (updated by the VPS
-      // whenever the tunnel URL changes). Multiple sources are tried so a
-      // stale CDN cache never strands the widget; the candidate is pinged
-      // before use so a dead tunnel is skipped.
-      var POINTER_URLS = [
-        'https://pakfuture299-hub.github.io/pakfuture/current-tunnel.txt',
-        'https://raw.githubusercontent.com/pakfuture299-hub/pakfuture/main/public/current-tunnel.txt'
-      ];
+      // The backend tunnel base. Update this when the tunnel restarts and
+      // the trycloudflare URL changes (see README).
+      var API_BASE = 'https://prophet-hidden-segment-speaker.trycloudflare.com';
       var cachedApiBase = null;
-
-      async function fetchPointerText() {
-        for (var i = 0; i < POINTER_URLS.length; i++) {
-          try {
-            var res = await fetch(POINTER_URLS[i], { cache: 'no-store' });
-            if (!res.ok) continue;
-            var text = await res.text();
-            if (text && /^https?:\/\//.test(text.trim())) return text.trim();
-          } catch (err) { /* try next source */ }
-        }
-        return '';
-      }
 
       async function pingBackend(base) {
         try {
@@ -259,13 +217,9 @@
 
       async function getApiBase() {
         if (cachedApiBase) return cachedApiBase;
-        var text = await fetchPointerText();
-        if (text) {
-          var base = text.replace(/\/+$/, '');
-          if (await pingBackend(base)) {
-            cachedApiBase = base;
-            return base;
-          }
+        if (await pingBackend(API_BASE)) {
+          cachedApiBase = API_BASE;
+          return API_BASE;
         }
         // Fallback: same origin (works when the widget is served by the
         // chatbot itself, e.g. localhost or the tunnel origin).

@@ -3,7 +3,7 @@
  *
  * This module is the single source of truth for everything the bot may
  * answer. It is generated from the live content of
- * https://job-portal-global.myshopify.com/ (scraped 2026-07-31) plus the
+ * https://job-portal-global-2.myshopify.com/ (scraped 2026-07-31) plus the
  * conversational rules defined by the product owner.
  *
  * Everything the bot can say is either:
@@ -18,7 +18,7 @@
 
 const STORE = {
   name: 'JOB PORTAL GLOBAL 2',
-  url: 'https://job-portal-global.myshopify.com/',
+  url: 'https://job-portal-global-2.myshopify.com/',
   tagline:
     '🚀 Online Jobs Available — Join Us Now — Hurry Up! Limited Seats Available 🚀',
   currency: 'PKR',
@@ -40,7 +40,7 @@ const JOBS = [
   {
     id: 'video-watch-and-earn',
     name: 'Video Watch and Earn',
-    url: 'https://job-portal-global.myshopify.com/products/video-watch-and-earn',
+    url: 'https://job-portal-global-2.myshopify.com/products/video-watch-and-earn',
     price: 'Rs.0.00',
     summary:
       'Watch sponsored ads and short videos on your phone to earn money. International brand ads need promotion and they hire workers for it.',
@@ -66,7 +66,7 @@ const JOBS = [
   {
     id: 'assignment-writting',
     name: 'Assignment Writing',
-    url: 'https://job-portal-global.myshopify.com/products/assignment-writting',
+    url: 'https://job-portal-global-2.myshopify.com/products/assignment-writting',
     price: 'Rs.0.00',
     summary:
       'Work from home writing assignments. Choose this skill based on your interest.',
@@ -74,7 +74,7 @@ const JOBS = [
   {
     id: 'content-writting',
     name: 'Content Writing',
-    url: 'https://job-portal-global.myshopify.com/products/content-writting',
+    url: 'https://job-portal-global-2.myshopify.com/products/content-writting',
     price: 'Rs.0.00',
     summary:
       'Work from home writing content. Choose this skill based on your interest.',
@@ -82,7 +82,7 @@ const JOBS = [
   {
     id: 'graphic-designer',
     name: 'Graphic Designer',
-    url: 'https://job-portal-global.myshopify.com/products/graphic-designer',
+    url: 'https://job-portal-global-2.myshopify.com/products/graphic-designer',
     price: 'Rs.0.00',
     summary:
       'Work from home as a graphic designer. Choose this skill based on your interest.',
@@ -90,7 +90,7 @@ const JOBS = [
   {
     id: 'travel-and-booking-support',
     name: 'Travel and Booking Support',
-    url: 'https://job-portal-global.myshopify.com/products/travel-and-booking-support',
+    url: 'https://job-portal-global-2.myshopify.com/products/travel-and-booking-support',
     price: 'Rs.0.00',
     summary:
       'Work from home providing travel and booking support. Choose this skill based on your interest.',
@@ -98,7 +98,7 @@ const JOBS = [
   {
     id: 'video-editing-job',
     name: 'Video Editing Job',
-    url: 'https://job-portal-global.myshopify.com/products/video-editing-job',
+    url: 'https://job-portal-global-2.myshopify.com/products/video-editing-job',
     price: 'Rs.0.00',
     summary:
       'Work from home as a video editor. Choose this skill based on your interest.',
@@ -106,7 +106,7 @@ const JOBS = [
   {
     id: 'digial-marketing',
     name: 'Digital Marketing',
-    url: 'https://job-portal-global.myshopify.com/products/digial-marketing',
+    url: 'https://job-portal-global-2.myshopify.com/products/digial-marketing',
     price: 'Rs.0.00',
     summary:
       'Work from home in digital marketing. Choose this skill based on your interest.',
@@ -114,7 +114,7 @@ const JOBS = [
   {
     id: 'data-entry',
     name: 'Data Entry',
-    url: 'https://job-portal-global.myshopify.com/products/data-entry',
+    url: 'https://job-portal-global-2.myshopify.com/products/data-entry',
     price: 'Rs.0.00',
     summary:
       'Work from home doing data entry. Choose this skill based on your interest.',
@@ -122,7 +122,7 @@ const JOBS = [
   {
     id: 'amazon-virtual-assisstant',
     name: 'Amazon Virtual Assistant',
-    url: 'https://job-portal-global.myshopify.com/products/amazon-virtual-assisstant',
+    url: 'https://job-portal-global-2.myshopify.com/products/amazon-virtual-assisstant',
     price: 'Rs.0.00',
     summary:
       'Work from home as an Amazon Virtual Assistant. Choose this skill based on your interest.',
@@ -130,7 +130,7 @@ const JOBS = [
   {
     id: 'amazon-fba',
     name: 'Amazon FBA',
-    url: 'https://job-portal-global.myshopify.com/products/amazon-fba',
+    url: 'https://job-portal-global-2.myshopify.com/products/amazon-fba',
     price: 'Rs.0.00',
     summary:
       'Work from home with Amazon FBA. Choose this skill based on your interest.',

@@ -1,6 +1,6 @@
 # 🤖 Job Portal Global — Recruitment Chat Widget
 
-Interactive AI chat widget for **JOB PORTAL GLOBAL 2** (`https://job-portal-global.myshopify.com/`), running on a VPS.
+Interactive AI chat widget for **JOB PORTAL GLOBAL 2** (`https://job-portal-global-2.myshopify.com/`), running on a VPS.
 
 A floating chat bubble on the Shopify storefront answers visitor questions using OpenAI (grounded in the site's knowledge base), then hands every candidate the single **Telegram invite link** where the hiring team takes over.
 
@@ -50,7 +50,8 @@ Visitor on Shopify storefront
 │   │   └── telegram.js       # legacy Telegram bot client (optional)
 │   ├── store/index.js        # in-memory rate limiting
 │   └── utils/                # validation, http retry, logger
-├── public/widget.html        # the embeddable chat widget (floating bubble)
+├── public/widget.js          # the storefront widget injector (loaded by the Shopify page)
+├── public/widget.html        # local preview page for the widget (npm run dev → /widget)
 ├── deploy/vps-deploy.sh      # Ubuntu VPS: systemd + Caddy + Node
 ├── scripts/check-env.js      # boot-time env validation
 └── tests/                    # node:test unit + smoke tests
@@ -162,30 +163,39 @@ sudo bash deploy/vps-deploy.sh   # then fill .env and start the service
 
 ### Making the widget public (HTTPS)
 
-The widget lives on the Shopify storefront, which is served over **HTTPS**. Browsers block "mixed content" — an HTTPS page cannot call a plain-`http://` API. So the bot's public URL must be HTTPS too. Two ways:
+The widget runs **on the Shopify storefront origin itself** — it is served from a Shopify page on `https://job-portal-global-2.myshopify.com`, so the browser allows it to call the backend (same-origin CORS). The backend stays on the VPS behind a free Cloudflare tunnel.
 
-- **Domain + Caddy** (recommended): point `chatbot.yourdomain.com` at the VPS, then in the Caddyfile:
-  ```
-  chatbot.yourdomain.com {
-      reverse_proxy 127.0.0.1:3000
-  }
-  ```
-  and set `ALLOWED_ORIGINS=https://job-portal-global.myshopify.com` so the storefront is allowed to call it.
-
-- **Cloudflare Tunnel** (free, no domain): `cloudflared tunnel --url http://localhost:3000` gives you a public `https://...trycloudflare.com` URL. Use that as the widget's API base.
-
-Then embed the widget on Shopify:
-
-1. Shopify admin → **Online Store → Themes → ⋯ → Edit code**.
-2. In `layout/theme.liquid`, right before `</body>`, add an iframe pointing at the widget:
-   ```html
-   <iframe
-     src="https://chatbot.yourdomain.com/widget"
-     style="position:fixed;bottom:0;right:0;width:0;height:0;border:0;z-index:99999"
-     title="Chat widget"
-   ></iframe>
+1. **Point the backend CORS at the store** — in the VPS `.env`, set:
    ```
-   (The widget renders its own floating bubble and window, so the iframe itself stays invisible.)
+   ALLOWED_ORIGINS=https://job-portal-global-2.myshopify.com
+   ```
+   then restart: `sudo systemctl restart job-portal-chatbot`.
+
+2. **Create a Shopify page for the widget** — Shopify admin → **Online Store → Pages → Add page**:
+   - Title: `Chat Widget`
+   - Handle: `chat-widget`
+   - Body: exactly one line:
+     ```html
+     <script src="https://pakfuture299-hub.github.io/pakfuture/widget.js"></script>
+     ```
+   - Save, then open `https://job-portal-global-2.myshopify.com/pages/chat-widget` — the bubble appears bottom-left.
+
+3. **Show the widget on every page (recommended)** — Shopify admin → **Online Store → Themes → ⋯ → Edit code**, and in `layout/theme.liquid` right before `</body>` add the same single line:
+   ```html
+   <script src="https://pakfuture299-hub.github.io/pakfuture/widget.js"></script>
+   ```
+   That's the only theme change — a bare `<script src>` tag, no Liquid braces, no iframe. Nothing else on the store is touched.
+
+> The widget's `widget.js` lives on GitHub Pages (`public/` → push to `main` auto-deploys) and injects the bubble + chat window directly into the page — there is no iframe and no postMessage sizing. The chat backend is discovered by pinging the tunnel's `/health`; if the tunnel is down the widget shows a clear error instead of failing silently.
+
+### When the tunnel restarts
+
+Free `trycloudflare` URLs are ephemeral — they change on VPS reboot or `cloudflared` restart. The backend URL is one constant at the top of `public/widget.js` (and `public/widget.html`):
+
+1. Restart the tunnel and copy the new URL: `cloudflared tunnel --url http://localhost:3000`
+2. Verify it: `curl https://<new-url>.trycloudflare.com/health`
+3. Update `API_BASE` in `public/widget.js` and `public/widget.html` to the new URL.
+4. Commit + push to `main` — GitHub Pages redeploys in ~90 seconds.
 
 ---
 
