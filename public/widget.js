@@ -43,11 +43,11 @@
   //     theme's own CSS cannot leak into the widget (and vice versa). ---
   var style = el('style');
   style.textContent =
-    '#jpc-root{all:initial;position:fixed;bottom:20px;left:20px;z-index:2147483000;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}' +
+    '#jpc-root{all:initial;position:fixed;bottom:20px;right:20px;z-index:2147483000;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}' +
     '#jpc-root *{box-sizing:border-box;margin:0;padding:0}' +
     '#jpc-launcher{display:flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:50%;background:#25d366;color:#fff;border:none;cursor:pointer;font-size:30px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.25);transition:transform .15s ease}' +
     '#jpc-launcher:hover{transform:scale(1.08)}' +
-    '#jpc-window{display:none;flex-direction:column;position:fixed;bottom:90px;left:20px;width:340px;max-width:calc(100vw - 40px);height:480px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.25);overflow:hidden;font-size:14px}' +
+    '#jpc-window{display:none;flex-direction:column;position:fixed;bottom:90px;right:20px;width:340px;max-width:calc(100vw - 40px);height:480px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.25);overflow:hidden;font-size:14px}' +
     '#jpc-window.open{display:flex}' +
     '#jpc-header{background:#25d366;color:#fff;padding:12px 16px;font-weight:600;display:flex;justify-content:space-between;align-items:center}' +
     '#jpc-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1}' +
