@@ -352,6 +352,8 @@ const RULES = {
     'Something went wrong on our side. Please try again in a moment — or contact our team on Telegram directly. 🙏',
   outOfScopeRedirect: REDIRECT_GUARDRAIL.message,
   telegramHelpIntro: TELEGRAM_HELP.intro,
+  securityReassurance:
+    'Your details are completely safe with us! 🔒 We only use your name, contact number and Telegram ID to process your application — nothing is shared or sold. We\'re a trusted platform with 500+ active earners and verified payouts.',
 };
 
 /**
@@ -430,6 +432,8 @@ const RULES_HI = {
     'Main sirf hamari jobs aur applications mein madad kar sakta hoon. Kisi aur cheez ke liye website par tafseelat dekhein 👉 ' +
     STORE.url,
   telegramHelpIntro: TELEGRAM_HELP.intro,
+  securityReassurance:
+    'Aap ki details bilkul mehfooz hain! 🔒 Hum sirf aap ka naam, contact number aur Telegram ID application process ke liye use karte hain — kisi se share ya bech nahi jaati. Hum 500+ active earners wali trusted platform hain, verified payouts ke saath.',
   done:
     'Aap ki application already submit ho chuki hai — hamari team jald hi Telegram par rabta karegi. 🎉',
 };

@@ -557,3 +557,132 @@ test('PITCH includes the WhatsApp-vs-Telegram explanation', () => {
   assert.match(PITCH.hi, /WhatsApp/);
   assert.match(PITCH.en, /WhatsApp/);
 });
+
+// ---- Conversation-flow stress tests: attack the bot mid-process ----
+
+test('FLOW: security concern while asked for name is reassured and name re-asked', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes'); // → awaiting_name
+  const { reply, session: s } = await processMessage(session, 'mujhe security concerns hain');
+  assert.match(reply, /safe|mehfooz|secure/i); // reassured
+  assert.match(reply, /name|naam/i); // name re-asked
+  assert.equal(s.state, 'awaiting_name'); // flow preserved
+  assert.equal(s.name, null); // not stored as a name
+});
+
+test('FLOW: security concern while asked for phone is reassured and phone re-asked', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  const { reply, session: s } = await processMessage(session, 'is my data safe with you?');
+  assert.match(reply, /safe|mehfooz|secure/i);
+  assert.match(reply, /number|phone/i); // phone re-asked
+  assert.equal(s.state, 'awaiting_phone');
+});
+
+test('FLOW: job details asked while collecting phone are answered, phone re-asked', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  setIntent('provide_info');
+  groundedResult = { text: 'Data Entry: Work from home doing data entry.' };
+  const { reply, session: s } = await processMessage(session, 'data entry kya hai?');
+  assert.match(reply, /Data Entry/); // answered
+  assert.match(reply, /number|phone/i); // phone re-asked
+  assert.equal(s.state, 'awaiting_phone'); // flow preserved
+  assert.equal(s.phone, null); // not polluted
+});
+
+test('FLOW: sentiment "thanks" while collecting telegram gets warm reply + telegram re-asked', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567'); // → awaiting_telegram
+  const { reply, session: s } = await processMessage(session, 'thank you so much');
+  assert.match(reply, /welcome|shukriya/i); // warm reply
+  assert.match(reply, /telegram/i); // telegram re-asked
+  assert.equal(s.state, 'awaiting_telegram'); // flow preserved
+});
+
+test('FLOW: job question at confirm is answered and confirm re-asked', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567');
+  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  setIntent('provide_info');
+  groundedResult = { text: 'Amazon FBA: Work from home with Amazon FBA.' };
+  const { reply, session: s } = await processMessage(session, 'amazon fba kya hai?');
+  assert.match(reply, /Amazon FBA/); // answered
+  assert.match(reply, /confirm|submit|Haan|Yes/i); // confirm re-asked
+  assert.equal(s.state, 'awaiting_confirm'); // flow preserved
+});
+
+test('FLOW: full application survives a barrage of side questions', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes'); // → awaiting_name
+  // Attack the name step.
+  setIntent('provide_info');
+  groundedResult = { text: 'Graphic Designer: Work from home as a graphic designer.' };
+  await processMessage(session, 'graphic design kya hai?'); // side question
+  await processMessage(session, 'is it safe?'); // security concern
+  await processMessage(session, 'Ali Raza'); // actual name
+  assert.equal(session.state, 'awaiting_phone');
+  assert.equal(session.name, 'Ali Raza');
+  // Attack the phone step.
+  setIntent('out_of_scope');
+  groundedResult = { outOfScope: true };
+  await processMessage(session, 'how much can i earn?'); // knowledge question
+  assert.equal(session.state, 'awaiting_phone');
+  await processMessage(session, 'thank you'); // sentiment
+  assert.equal(session.state, 'awaiting_phone');
+  await processMessage(session, '03001234567'); // actual phone
+  assert.equal(session.state, 'awaiting_telegram');
+  assert.equal(session.phone, '03001234567');
+  // Attack the telegram step.
+  await processMessage(session, '@ali_r'); // actual telegram
+  assert.equal(session.state, 'awaiting_confirm');
+  const before = submissions.length;
+  await processMessage(session, 'yes'); // submit
+  assert.equal(session.state, 'done');
+  assert.equal(submissions.length, before + 1); // exactly one submission
+  assert.equal(session.name, 'Ali Raza');
+  assert.equal(session.phone, '03001234567');
+  assert.equal(session.telegram, '@ali_r');
+});
+
+test('FLOW: "no thanks" mid-field backs out, not a sentiment reply', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567'); // → awaiting_telegram
+  const { reply, session: s } = await processMessage(session, 'no thanks');
+  assert.equal(s.state, 'done'); // backed out
+  assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
+  assert.doesNotMatch(reply, /welcome|shukriya/i); // not a "you're welcome"
+});
+
+test('FLOW: "no problem" mid-field does NOT close the application', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'yes');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567'); // → awaiting_telegram
+  const { session: s } = await processMessage(session, 'no problem');
+  assert.equal(s.state, 'awaiting_telegram'); // flow preserved
+});

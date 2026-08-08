@@ -132,6 +132,16 @@ function asksTelegramHelp(text) {
 }
 
 /**
+ * True when the candidate raises a security / privacy / trust concern about
+ * sharing their details — "security concerns", "safe hai", "data kahan
+ * jayegi", "is this safe", "trust you", etc.
+ */
+function asksSecurity(text) {
+  const t = normalizeText(text).toLowerCase();
+  return /(security|secure|safe|privacy|private|data (kahan|kaise|leak)|leak|trust|trusted|scam|fraud|risk|khof|dar|mehfooz|confidential|personal info|personal information|details (safe|share|dein|du\b)|share.*details|why.*(need|ask).*(number|phone|info)|kya.*zaroorat|information kahan)/.test(t);
+}
+
+/**
  * True when the message names one of our jobs — used to force a job answer
  * even when the classifier says out_of_scope or greeting.
  */
@@ -231,9 +241,25 @@ function matchJob(text) {
   return null;
 }
 
-/** A compact, friendly summary of a job (name + summary). */
+/**
+ * A friendly, detailed walkthrough of a job (name + summary + requirements +
+ * how to apply) when the knowledge base has that detail — so a candidate
+ * asking about a job gets proper details, not just a one-liner.
+ */
 function jobSummary(job) {
-  return `${job.name}${job.summary ? ': ' + job.summary : ''}`;
+  const lines = [`${job.name}${job.summary ? ': ' + job.summary : ''}`];
+  if (Array.isArray(job.requirements) && job.requirements.length) {
+    lines.push(`Requirements:`);
+    for (const r of job.requirements) lines.push(`• ${r}`);
+  }
+  if (Array.isArray(job.whyJoin) && job.whyJoin.length) {
+    lines.push(`Why join:`);
+    for (const w of job.whyJoin) lines.push(`• ${w}`);
+  }
+  if (job.howToApply) {
+    lines.push(`How to apply: ${job.howToApply}`);
+  }
+  return lines.join('\n');
 }
 
 /** Build a fresh session. */
@@ -252,6 +278,18 @@ function createSession() {
 /** Pick the rule set for the session's language. */
 function rulesFor(session) {
   return session.lang === 'hi' ? RULES_HI : RULES;
+}
+
+/** The field prompt to re-ask for a given field-collection state. */
+function fieldReask(session) {
+  const R = rulesFor(session);
+  switch (session.state) {
+    case 'awaiting_name': return R.askName;
+    case 'awaiting_phone': return R.askPhone;
+    case 'awaiting_telegram': return R.askTelegram;
+    case 'awaiting_confirm': return R.confirmPrompt;
+    default: return null;
+  }
 }
 
 /** The Telegram help guide (VPN → app → video → join), localized intro. */
@@ -305,6 +343,31 @@ function extractFieldAnswer(message, field) {
   const s = normalizeText(message);
   if (!s || s.length > 120) return EMPTY_ANSWER_SENTINEL;
   return s;
+}
+
+/**
+ * Handle a side-question (job details, knowledge, security, telegram help)
+ * that arrives mid field-collection: answer it, then re-ask the field so the
+ * application flow is never lost. Returns null when the message isn't a
+ * side-question (i.e. it's a real field answer or invalid input).
+ */
+async function sideQuestionInField(session, message) {
+  if (asksSecurity(message)) {
+    return rulesFor(session).securityReassurance + '\n\n' + fieldReask(session);
+  }
+  if (asksTelegramHelp(message)) {
+    return telegramHelpReply(session) + '\n\n' + fieldReask(session);
+  }
+  // Job names ("what is data entry?") and knowledge questions ("how much can
+  // i earn?") are answered from the knowledge base.
+  if (namesJob(message) || asksKnowledgeQuestion(message) || looksLikeQuestion(message)) {
+    const answer = await answerQuestion(session, message);
+    if (answer === null) return null;
+    if (answer.applyFlow) return null; // "i want to apply" — handled by state
+    if (answer.telegramHelp) return telegramHelpReply(session) + '\n\n' + fieldReask(session);
+    return answer + '\n\n' + fieldReask(session);
+  }
+  return null;
 }
 
 /**
@@ -373,6 +436,15 @@ async function processMessage(session, message) {
     return { reply: telegramHelpReply(session), session };
   }
 
+  // Universal security-reassurance fallback — a candidate who raises a
+  // privacy/trust concern at ANY point gets a reassuring answer. In a
+  // field-collection state we append the field re-ask so the flow continues.
+  if (asksSecurity(text)) {
+    const R = rulesFor(session);
+    const reask = fieldReask(session);
+    return { reply: reask ? R.securityReassurance + '\n\n' + reask : R.securityReassurance, session };
+  }
+
   // Language detection — re-run on every message so a candidate who switches
   // from English to Roman Urdu/Hinglish mid-conversation gets replies in the
   // language they are actually writing. A session only flips to 'en' when the
@@ -388,19 +460,28 @@ async function processMessage(session, message) {
     }
   }
 
+  // In field-collection states, a back-out ("no thanks", "no, cancel",
+  // "no stop", "nahi") must beat the sentiment handler, which would otherwise
+  // reply "you're welcome" and keep asking for the field forever. A bare
+  // "no problem" / "no worries" (dismissive, not a refusal) does NOT close.
+  if (
+    isNo(text) &&
+    !/(no (problem|worries|issue|prob|thanks to you))/.test(text) &&
+    ['awaiting_name', 'awaiting_phone', 'awaiting_telegram', 'awaiting_confirm'].includes(session.state)
+  ) {
+    session.state = 'done';
+    return { reply: notInterestedReply(session), session };
+  }
+
   // Sentiments / small talk are handled deterministically — no AI call, so
   // they work even when OpenAI is down (and never end up in the generic
-  // redirect path). Only after the field-collection states (name/phone/
-  // telegram) does a sentiment answer NOT override the flow.
+  // redirect path). In field-collection states the warm reply is followed by
+  // the field re-ask so the flow is never lost.
   const sentiment = detectSentiment(text);
-  if (
-    sentiment &&
-    !['awaiting_name', 'awaiting_phone', 'awaiting_telegram', 'awaiting_confirm'].includes(
-      session.state
-    )
-  ) {
+  if (sentiment) {
     const R = session.lang === 'hi' ? SENTIMENTS.hi : SENTIMENTS.en;
-    return { reply: R[sentiment], session };
+    const reask = fieldReask(session);
+    return { reply: reask ? R[sentiment] + '\n\n' + reask : R[sentiment], session };
   }
 
   // Re-route Telegram help requests at any point in the flow.
@@ -551,6 +632,10 @@ async function processMessage(session, message) {
     }
 
     case 'awaiting_name': {
+      // A side-question (security concern, job details, knowledge question)
+      // mid-application: answer it and re-ask for the name.
+      const side = await sideQuestionInField(session, message);
+      if (side) return { reply: side, session };
       // The candidate may name a job ("i want to apply for data entry") or
       // ask "which job?" instead of giving their name. Capture the job and
       // keep asking for the name — never store a job name as the person's name.
@@ -585,11 +670,9 @@ async function processMessage(session, message) {
     }
 
     case 'awaiting_phone': {
-      // A plain "no" while being asked for the number = backing out.
-      if (isNo(text)) {
-        session.state = 'done';
-        return { reply: notInterestedReply(session), session };
-      }
+      // Side-question (security, job details, knowledge) → answer + re-ask.
+      const side = await sideQuestionInField(session, message);
+      if (side) return { reply: side, session };
       const raw = extractFieldAnswer(message, 'phone');
       if (raw === EMPTY_ANSWER_SENTINEL || !isValidPhone(raw)) {
         return { reply: rulesFor(session).phoneInvalid, session };
@@ -600,11 +683,9 @@ async function processMessage(session, message) {
     }
 
     case 'awaiting_telegram': {
-      // A plain "no" while being asked for the Telegram handle = backing out.
-      if (isNo(text)) {
-        session.state = 'done';
-        return { reply: notInterestedReply(session), session };
-      }
+      // Side-question (security, job details, knowledge) → answer + re-ask.
+      const side = await sideQuestionInField(session, message);
+      if (side) return { reply: side, session };
       const raw = extractFieldAnswer(message, 'telegram');
       if (raw === EMPTY_ANSWER_SENTINEL || !isValidTelegram(raw)) {
         return { reply: rulesFor(session).telegramInvalid, session };
@@ -622,6 +703,13 @@ async function processMessage(session, message) {
 
     case 'awaiting_confirm': {
       const lower = text.toLowerCase();
+
+      // Side-question (job details, knowledge, security) → answer + re-ask
+      // the confirm prompt, so the pending application isn't lost.
+      if (!isYes(text) && !isNo(text)) {
+        const side = await sideQuestionInField(session, message);
+        if (side) return { reply: side, session };
+      }
 
       if (isYes(text)) {
         const result = submitCandidate(session);
@@ -650,11 +738,6 @@ async function processMessage(session, message) {
         session.telegram = null;
         session.state = 'awaiting_telegram';
         return { reply: rulesFor(session).askTelegram, session };
-      }
-      // A plain "no" to "confirm?" = not submitting after all → polite close.
-      if (isNo(text)) {
-        session.state = 'done';
-        return { reply: notInterestedReply(session), session };
       }
       return { reply: rulesFor(session).confirmPrompt, session };
     }
@@ -685,5 +768,6 @@ module.exports = {
   isNo,
   isCancelling,
   asksTelegramHelp,
+  asksSecurity,
   matchJob,
 };
