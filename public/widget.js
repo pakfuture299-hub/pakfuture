@@ -190,6 +190,11 @@
         body: JSON.stringify(body),
       });
       var data = await res.json();
+      if (!res.ok) {
+        // Surface server-side errors (e.g. rate limit) instead of a generic failure.
+        addMessage(data.error ? 'Sorry, ' + data.error.toLowerCase() + '. Please try again in a moment.' : 'Sorry, something went wrong. Please try again.', 'bot');
+        return;
+      }
       addMessage(data.reply || 'Sorry, something went wrong. Please try again.', 'bot');
     } catch (err) {
       addMessage("Sorry, I couldn't reach the server. Please try again.", 'bot');

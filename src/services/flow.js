@@ -6,14 +6,17 @@
  * reply + the updated session. The thin wrappers (conversation.js for the
  * Telegram webhook, chat.js for the storefront widget) handle transport.
  *
- * Flow states:
- *   idle                 → greeting + pitch → ask "do you have Telegram?"
- *   awaiting_telegram_has → yes → askName; no → Telegram help guide → askName
- *   awaiting_name        → collect full name
- *   awaiting_phone       → collect contact number
- *   awaiting_telegram    → collect Telegram username/number
- *   awaiting_confirm     → confirm details → submitCandidate → done
- *   done                 → soft "already submitted" reply
+ * Flow states (matches the product-owner spec):
+ *   idle                    → short greeting + "how can I help?" (no pitch)
+ *   (job Q&A via askGrounded — no pitch, no links)
+ *   awaiting_interest       → after job interest: pitch (why Telegram) +
+ *                             tutorial links (VPN/app/video) → "want to apply?"
+ *   awaiting_apply_decision → yes → collect details; no → polite close
+ *   awaiting_name           → collect full name
+ *   awaiting_phone          → collect contact number
+ *   awaiting_telegram       → collect Telegram username/number
+ *   awaiting_confirm        → confirm details → submit → invite link + done
+ *   done                    → soft "already submitted" reply
  *
  * Language: if the candidate writes in Roman Urdu/Hinglish the replies switch
  * to Hinglish (RULES_HI). Detection is deterministic (marker words), never a
@@ -107,15 +110,44 @@ function telegramHelpReply(session) {
   return intro + '\n\n' + TELEGRAM_HELP.steps.join('\n');
 }
 
-/** Greeting + pitch + "do you have Telegram?" — the entry into the flow. */
-function greetingPitchReply(session) {
+/**
+ * Short greeting — just a friendly intro + "how can I help?", no pitch.
+ * The pitch comes later, only once the candidate shows interest.
+ */
+function shortGreetingReply(session) {
+  return rulesFor(session).shortGreeting;
+}
+
+/**
+ * The interest → pitch step: explains why Telegram, provides the setup links
+ * (VPN / app / video), then asks whether they want to apply.
+ */
+function pitchAndAskReply(session) {
   const R = rulesFor(session);
   const pitch = session.lang === 'hi' ? PITCH.hi : PITCH.en;
-  const parts = [R.greeting];
-  if (session.lang === 'hi') parts.push(RULES_HI.pitchIntro);
-  parts.push(pitch);
-  parts.push(R.askHasTelegram);
+  const links = rulesFor(session).noTelegramGuide || telegramHelpReply(session);
+  const parts = [
+    R.interestPrompt,
+    pitch,
+    links,
+    R.applyAsk,
+  ];
   return parts.join('\n\n');
+}
+
+/** Polite close when the candidate is not interested in applying. */
+function notInterestedReply(session) {
+  return rulesFor(session).notInterested;
+}
+
+/** Final reply after a successful submission: invite link + confirmation. */
+function submittedReply(session) {
+  const R = rulesFor(session);
+  return (
+    R.submitted +
+    '\n\n' +
+    R.inviteLinkLine
+  );
 }
 
 /** Validate + extract a field answer from free text. */
@@ -132,7 +164,7 @@ function extractFieldAnswer(message, field) {
  */
 async function processMessage(session, message) {
   const text = normalizeText(message);
-  if (!text) return { reply: greetingPitchReply(session), session };
+  if (!text) return { reply: shortGreetingReply(session), session };
 
   // Cheap offline guardrail first (no AI call for obvious off-topic).
   if (isRedirectTrigger(text)) {
@@ -140,7 +172,7 @@ async function processMessage(session, message) {
   }
 
   // Language detection (only meaningful before the flow is deep in English).
-  if (session.state === 'idle' || session.state === 'awaiting_telegram_has') {
+  if (session.state === 'idle') {
     session.lang = detectLanguage(text);
   }
 
@@ -153,21 +185,26 @@ async function processMessage(session, message) {
   switch (session.state) {
     case 'idle': {
       let reply;
-      if (intent.intent === 'greeting' || intent.intent === 'apply') {
-        // Greeting OR an explicit "I want to apply" both start the flow.
-        reply = greetingPitchReply(session);
-        session.state = 'awaiting_telegram_has';
+      if (intent.intent === 'greeting') {
+        // Just a friendly intro — no pitch yet.
+        reply = shortGreetingReply(session);
+      } else if (intent.intent === 'apply') {
+        // Straight to the pitch + apply ask.
+        reply = pitchAndAskReply(session);
+        session.state = 'awaiting_apply_decision';
       } else if (intent.intent === 'provide_info') {
         const answer = await askGrounded(message);
         if (answer.outOfScope) {
           reply = rulesFor(session).outOfScopeRedirect;
         } else if (answer.applyFlow) {
-          reply = greetingPitchReply(session);
-          session.state = 'awaiting_telegram_has';
+          reply = pitchAndAskReply(session);
+          session.state = 'awaiting_apply_decision';
         } else if (answer.telegramHelp) {
           reply = telegramHelpReply(session);
         } else {
-          reply = answer.text;
+          // Real answer about a job — follow with a gentle interest prompt.
+          reply = answer.text + '\n\n' + rulesFor(session).interestPrompt;
+          session.state = 'awaiting_interest';
         }
       } else {
         reply = rulesFor(session).outOfScopeRedirect;
@@ -175,19 +212,39 @@ async function processMessage(session, message) {
       return { reply, session };
     }
 
-    case 'awaiting_telegram_has': {
+    case 'awaiting_interest': {
+      // Candidate just answered a job question; they may ask more or show intent.
+      if (intent.intent === 'apply') {
+        session.state = 'awaiting_apply_decision';
+        return { reply: pitchAndAskReply(session), session };
+      }
+      if (intent.intent === 'provide_info') {
+        const answer = await askGrounded(message);
+        if (answer.outOfScope) return { reply: rulesFor(session).outOfScopeRedirect, session };
+        if (answer.applyFlow) {
+          session.state = 'awaiting_apply_decision';
+          return { reply: pitchAndAskReply(session), session };
+        }
+        if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
+        // Still exploring — answer and keep the interest prompt.
+        return { reply: answer.text + '\n\n' + rulesFor(session).interestPrompt, session };
+      }
+      // Anything else (incl. "yes" to the interest prompt) → pitch + apply ask.
+      session.state = 'awaiting_apply_decision';
+      return { reply: pitchAndAskReply(session), session };
+    }
+
+    case 'awaiting_apply_decision': {
       // Deterministic yes/no — no model call needed here.
       if (isYes(text)) {
         session.state = 'awaiting_name';
         return { reply: rulesFor(session).askName, session };
       }
       if (isNo(text)) {
-        session.state = 'awaiting_name';
-        const guide = rulesFor(session).noTelegramGuide || telegramHelpReply(session);
-        return { reply: guide + '\n\n' + rulesFor(session).askName, session };
+        session.state = 'done';
+        return { reply: notInterestedReply(session), session };
       }
-      // Unclear answer — repeat the question.
-      return { reply: rulesFor(session).askHasTelegram, session };
+      return { reply: rulesFor(session).applyAsk, session };
     }
 
     case 'awaiting_name': {
@@ -232,7 +289,7 @@ async function processMessage(session, message) {
         const result = submitCandidate(session);
         if (result.ok) {
           session.state = 'done';
-          return { reply: rulesFor(session).submitted, session, submitted: true };
+          return { reply: submittedReply(session), session, submitted: true };
         }
         if (result.duplicate) {
           session.state = 'done';
@@ -266,7 +323,7 @@ async function processMessage(session, message) {
     default: {
       logger.warn('Unknown session state, resetting', { state: session.state });
       const fresh = createSession();
-      return { reply: greetingPitchReply(fresh), session: fresh };
+      return { reply: shortGreetingReply(fresh), session: fresh };
     }
   }
 }

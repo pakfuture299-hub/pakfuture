@@ -267,12 +267,23 @@ const REDIRECT_GUARDRAIL = {
 
 /** Conversation rule texts shared across the flow. */
 const RULES = {
+  shortGreeting: [
+    `👋 Hi! Welcome to ${STORE.name}.`,
+    `We hire daily for online work-from-home jobs 💼. Ask me about any job on the site, or let me know what you're looking for!`,
+  ].join('\n\n'),
   greeting: [
     `👋 Welcome to ${STORE.name}!`,
     `We hire daily and we're glad you're here. 🎉`,
     `📢 All communication with our team happens through Telegram, so you'll need a Telegram account to complete your application and receive your task details.`,
     `Please share your details below and we'll get you started!`,
   ].join('\n\n'),
+  interestPrompt:
+    'If you\'re interested in this job (or any other), let me know and I\'ll walk you through applying! 😊',
+  pitchIntro:
+    'Before you apply, let me explain how our team works — it\'s important you know where everything happens:',
+  applyAsk: 'Are you interested in applying? (Yes / No)',
+  notInterested:
+    'No problem at all! 😊 If you change your mind, just open the chat again and we\'ll get you started. Have a great day!',
   askName: 'Please share your full name to start your application. 📝',
   askPhone:
     'Great! Now please share your active contact number (digits only, e.g. 03001234567). 📱',
@@ -290,6 +301,7 @@ const RULES = {
     'Our team will contact you on Telegram shortly with the next steps and your task details.',
     'Make sure your Telegram is ready so you don\'t miss our message!',
   ].join('\n\n'),
+  inviteLinkLine: `Join our team on Telegram to get started: ${require('../config').inviteLink}`,
   duplicate:
     'We already received your application recently. Our team will contact you on Telegram shortly — no need to apply again. 🙏',
   throttled:
@@ -323,21 +335,29 @@ const PITCH = {
  * writes in Roman Urdu/Hinglish. Keys mirror RULES.
  */
 const RULES_HI = {
+  shortGreeting: [
+    `👋 Assalam-o-Alaikum! ${STORE.name} mein khush aamdeed!`,
+    `Hum rozana online ghar-baithay jobs ke liye bharti karte hain 💼. Kisi bhi job ke baare mein poochein, ya bataayein ke aap kya dhoondh rahe hain!`,
+  ].join('\n\n'),
   greeting: [
     `👋 ${STORE.name} mein khush aamdeed!`,
     `Hum rozana online ghar-baithay jobs ke liye bharti karte hain. 🎉`,
     `📢 Hamari saari communication Telegram par hoti hai, is liye aap ko Telegram account ki zaroorat hogi application complete karne aur task details lene ke liye.`,
     `Neeche apni details share karein aur hum shuru karte hain!`,
   ].join('\n\n'),
+  interestPrompt:
+    'Agar aap is job (ya kisi aur) mein interested hain, toh mujhe bataayein — main apply karne ka poora tareeqa samjha doonga! 😊',
   pitchIntro:
-    'Pehle aap ko ek baat samjha doon — ye kaam kahan aur kaise hota hai:',
-  askHasTelegram: 'Kya aap ka Telegram account pehle se bana hua hai? (Haan / Nahi)',
+    'Apply karne se pehle, main samjha doon ke hamari team kaise kaam karti hai — ye jaanna zaroori hai:',
+  applyAsk: 'Kya aap apply karne mein interested hain? (Haan / Nahi)',
   noTelegramGuide: [
-    `Koi masla nahi! Main aap ko step-by-step guide karta hoon.`,
+    `Agar Telegram nahi hai toh koi masla nahi — setup karne ke liye ye steps follow karein:`,
     `1️⃣ Agar Telegram aap ke mulk mein block hai, toh pehle Proton VPN (free) install karein 👉 https://protonvpn.com/download`,
     `2️⃣ Telegram app install karein 👉 https://telegram.org/dl`,
     `3️⃣ Setup tutorial dekhein 👉 https://www.youtube.com/watch?v=ZYkBtYMLlM4`,
   ].join('\n'),
+  notInterested:
+    'Koi masla nahi! 😊 Agar kabhi dil kare, toh dobara chat khol lein aur hum shuru kar denge. Allah Hafiz!',
   askName: 'Apna poora naam share karein taake application shuru ho. 📝',
   askPhone:
     'Bohat acha! Ab apna active contact number bhejein (sirf digits, masalan 03001234567). 📱',
@@ -357,6 +377,7 @@ const RULES_HI = {
     `Hamari team jald hi aap ko Telegram par next steps aur task details bhejegi.`,
     `Yakeeni banayein ke aap ka Telegram ready hai taake hamara message miss na ho!`,
   ].join('\n\n'),
+  inviteLinkLine: `Hamaari team se judne ke liye Telegram par aayein: ${require('../config').inviteLink}`,
   duplicate:
     'Aap ki application humein pehle hi mil chuki hai. Hamari team jald hi Telegram par rabta karegi — dobara apply karne ki zaroorat nahi. 🙏',
   throttled:

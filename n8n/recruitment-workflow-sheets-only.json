@@ -1,0 +1,198 @@
+{
+  "name": "Recruitment — Candidate Intake (Webhook → Sheets)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recruitment",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "recruitment-sheets-only"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "name-required",
+              "leftValue": "={{ $json.name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "phone-required",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "telegram-required",
+              "leftValue": "={{ $json.telegram }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-001",
+      "name": "Validate Required Fields",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nconst now = new Date();\nconst ts = (item.timestamp && !isNaN(Date.parse(item.timestamp)))\n  ? new Date(item.timestamp).toISOString()\n  : now.toISOString();\n\nconst source = item.source || 'Shopify Chatbot';\n\nreturn [{\n  json: {\n    timestamp: ts,\n    name: String(item.name || '').trim(),\n    phone: String(item.phone || '').trim(),\n    telegram: String(item.telegram || '').trim(),\n    source: source,\n    status: item.status || 'New'\n  }\n}];",
+        "language": "javaScript"
+      },
+      "id": "normalize-001",
+      "name": "Normalize & Prepare Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1udv50rg9ra41R7py99V8Gb17Ix_k_CSIo8DA1YyzZpw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "name": "={{ $json.name }}",
+            "phone": "={{ $json.phone }}",
+            "telegram": "={{ $json.telegram }}",
+            "source": "={{ $json.source }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "sheets-001",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true,\n  \"received\": true\n}",
+        "options": {}
+      },
+      "id": "reply-001",
+      "name": "Webhook Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [800, 0]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recruitment",
+        "responseCode": 400,
+        "responseBody": "{\n  \"ok\": false,\n  \"error\": \"Missing required fields: name, phone, telegram\"\n}",
+        "options": {}
+      },
+      "id": "reject-001",
+      "name": "Reject Invalid Payload",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [200, 200]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Prepare Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Invalid Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Prepare Row": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Webhook Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "job-portal-recruitment-sheets-only"
+  }
+}
