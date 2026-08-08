@@ -51,6 +51,10 @@ const HI_MARKERS = [
   'ji', 'hn', 'hain', 'hai', 'kahan', 'kaise', 'kis', 'mera', 'meri',
   'mujhe', 'main', 'apna', 'apni', 'wala', 'wali', 'shukriya', 'masalan',
   'kar', 'raha', 'rahi', 'karna', 'krna', 'mil', 'deta', 'deti',
+  'konsi', 'kaunsi', 'kaun', 'kaun si', 'jobs', 'job', 'hota', 'hoti',
+  'karte', 'karti', 'karta', 'bana', 'banna', 'aana', 'aati', 'aata',
+  'kisam', 'kism', 'kitni', 'kitna', 'kahan se', 'kab', 'zaroorat',
+  'hai kya', 'hain kya',
 ];
 
 /** Words that look like a "no" answer (Hinglish + English). */
@@ -80,6 +84,17 @@ function detectLanguage(text) {
   const strong = ['haan', 'nahi', 'nai', 'nhi', 'ji', 'shukriya', 'chahiye', 'kya'];
   if (words.some((w) => strong.includes(w))) return 'hi';
   return hits >= 2 ? 'hi' : 'en';
+}
+
+/**
+ * True when the message is unambiguously English — enough to move a Hinglish
+ * session back to English. Used so a Hinglish session isn't stuck forever:
+ * "what is the salary" flips back, while "ok" / "yes" / "no" (which are also
+ * Hinglish words) don't.
+ */
+function isStrongEnglish(text) {
+  const t = normalizeText(text).toLowerCase();
+  return /(^|\s)(what|which|how|where|when|why|is|are|do|does|can|tell|explain|salary|job|jobs|apply|work|earn|payment|hours|time|requirements|need|have|has|help)\b/.test(t);
 }
 
 /** True when the message looks like a plain "yes" answer. */
@@ -131,6 +146,19 @@ function detectSentiment(text) {
     return 'intro';
   }
   return null;
+}
+
+/**
+ * True when the message looks like a question (English or Hinglish), but NOT
+ * a bare greeting ("hello?", "hi?") or small talk — those are greetings.
+ */
+function looksLikeQuestion(text) {
+  const t = normalizeText(text).toLowerCase();
+  // Pure greeting / small talk with a trailing ? is still just a greeting.
+  if (/^(hi|hello|hey|salam|assalam|good morning|good afternoon|good evening|kaise ho|kya haal|sab kuch)\b/.test(t)) {
+    return false;
+  }
+  return /(\?$)|(^|\s)(konsi|kaunsi|kaun si|kya|kyun|kaise|kaisee|which|what|how|where|when|why|is|are|do|does|can|tell me|batao|bataiye|bataye|share)\b/i.test(t);
 }
 
 /** Build a fresh session. */
@@ -217,9 +245,19 @@ async function processMessage(session, message) {
     return { reply: rulesFor(session).outOfScopeRedirect, session };
   }
 
-  // Language detection (only meaningful before the flow is deep in English).
-  if (session.state === 'idle') {
-    session.lang = detectLanguage(text);
+  // Language detection — re-run on every message so a candidate who switches
+  // from English to Roman Urdu/Hinglish mid-conversation gets replies in the
+  // language they are actually writing. A session only flips to 'en' when the
+  // current message is clearly English (strong-en marker), and only flips to
+  // 'hi' on strong Hinglish markers — so one stray English word doesn't flip
+  // a Hinglish session back and forth.
+  if (session.state !== 'awaiting_name' && session.state !== 'awaiting_phone') {
+    const lang = detectLanguage(text);
+    if (lang === 'hi') {
+      session.lang = 'hi';
+    } else if (lang === 'en' && isStrongEnglish(text)) {
+      session.lang = 'en';
+    }
   }
 
   // Sentiments / small talk are handled deterministically — no AI call, so
@@ -247,8 +285,25 @@ async function processMessage(session, message) {
     case 'idle': {
       let reply;
       if (intent.intent === 'greeting') {
-        // Just a friendly intro — no pitch yet.
-        reply = shortGreetingReply(session);
+        // "konsi jobs hain?" mislabeled as greeting must still be answered
+        // from the knowledge base, not given a greeting.
+        if (looksLikeQuestion(text)) {
+          const answer = await askGrounded(message, session.lang);
+          if (answer.outOfScope) {
+            reply = rulesFor(session).outOfScopeRedirect;
+          } else if (answer.applyFlow) {
+            reply = pitchAndAskReply(session);
+            session.state = 'awaiting_apply_decision';
+          } else if (answer.telegramHelp) {
+            reply = telegramHelpReply(session);
+          } else {
+            reply = answer.text + '\n\n' + rulesFor(session).interestPrompt;
+            session.state = 'awaiting_interest';
+          }
+        } else {
+          // Just a friendly intro — no pitch yet.
+          reply = shortGreetingReply(session);
+        }
       } else if (intent.intent === 'apply') {
         // Straight to the pitch + apply ask.
         reply = pitchAndAskReply(session);
@@ -282,7 +337,11 @@ async function processMessage(session, message) {
         session.state = 'awaiting_apply_decision';
         return { reply: pitchAndAskReply(session), session };
       }
-      if (intent.intent === 'provide_info') {
+      // A follow-up question ("konsi jobs hain?", "what is data entry?")
+      // should be answered from the knowledge base, never absorbed into the
+      // pitch. The classifier may mislabel these as greeting/other, so a
+      // message that *looks* like a question is treated as provide_info too.
+      if (intent.intent === 'provide_info' || looksLikeQuestion(text)) {
         const answer = await askGrounded(message, session.lang);
         if (answer.outOfScope) return { reply: rulesFor(session).outOfScopeRedirect, session };
         if (answer.applyFlow) {
@@ -293,7 +352,12 @@ async function processMessage(session, message) {
         // Still exploring — answer and keep the interest prompt.
         return { reply: answer.text + '\n\n' + rulesFor(session).interestPrompt, session };
       }
-      // Anything else (incl. "yes" to the interest prompt) → pitch + apply ask.
+      // An explicit "yes / interested" or plain confirmation → pitch + apply ask.
+      if (isYes(text) || /interest|interested|chahiye|chahie|karna chahta|karna chahti/i.test(text)) {
+        session.state = 'awaiting_apply_decision';
+        return { reply: pitchAndAskReply(session), session };
+      }
+      // Anything else → pitch + apply ask (candidate engaged but unclear).
       session.state = 'awaiting_apply_decision';
       return { reply: pitchAndAskReply(session), session };
     }
@@ -311,6 +375,16 @@ async function processMessage(session, message) {
       // A clear out-of-context question while waiting for yes/no → redirect.
       if (intent.intent === 'out_of_scope') {
         return { reply: rulesFor(session).outOfScopeRedirect, session };
+      }
+      // A follow-up question while waiting for yes/no ("konsi jobs hain?")
+      // should be answered, not absorbed into the pitch or repeated ask.
+      if (intent.intent === 'provide_info' || looksLikeQuestion(text)) {
+        const answer = await askGrounded(message, session.lang);
+        if (answer.outOfScope) return { reply: rulesFor(session).outOfScopeRedirect, session };
+        if (answer.applyFlow) return { reply: pitchAndAskReply(session), session };
+        if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
+        // Answer the question, then still ask whether they want to apply.
+        return { reply: answer.text + '\n\n' + rulesFor(session).applyAsk, session };
       }
       return { reply: rulesFor(session).applyAsk, session };
     }

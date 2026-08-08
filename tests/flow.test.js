@@ -240,6 +240,80 @@ test('out-of-context question mid-flow redirects (awaiting_apply_decision)', asy
   assert.equal(s.state, 'awaiting_apply_decision');
 });
 
+test('job question mid-flow (awaiting_interest) is answered, not pushed to pitch', async () => {
+  // Even when the model mislabels "konsi jobs hain" as greeting, the
+  // question-like text must be answered from the knowledge base.
+  setIntent('provide_info');
+  groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
+  const session = fresh();
+  await processMessage(session, 'tell me about video watch and earn'); // → awaiting_interest
+  setIntent('greeting'); // simulate the classifier mislabeling a Hinglish question
+  groundedResult = { text: 'We have 10 jobs: Video Watch and Earn, Assignment Writing, ...' };
+  const { reply, session: s } = await processMessage(session, 'konsi jobs hain?');
+  assert.match(reply, /10 jobs|Video Watch and Earn/i); // answered from knowledge
+  assert.doesNotMatch(reply, /WhatsApp|protonvpn/); // no pitch
+  assert.equal(s.state, 'awaiting_interest'); // flow preserved
+});
+
+test('"konsi jobs hain" as first message is answered, not greeted', async () => {
+  // The classifier may mislabel "konsi jobs hain?" as greeting — the flow
+  // must still answer the question from the knowledge base.
+  setIntent('greeting'); // simulate misclassification
+  groundedResult = { text: 'We have 10 jobs: Video Watch and Earn, Assignment Writing, ...' };
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'konsi jobs hain?');
+  assert.match(reply, /10 jobs|Video Watch and Earn/i); // answered from knowledge
+  assert.equal(s.state, 'awaiting_interest');
+});
+
+test('job question mid-flow (awaiting_apply_decision) is answered, not re-asked', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply'); // → awaiting_apply_decision
+  setIntent('provide_info');
+  groundedResult = { text: 'We have 10 jobs: Video Watch and Earn, Assignment Writing, ...' };
+  const { reply, session: s } = await processMessage(session, 'konsi jobs hain?');
+  assert.match(reply, /10 jobs|Video Watch and Earn/i); // answered
+  assert.equal(s.state, 'awaiting_apply_decision'); // still awaiting decision
+  assert.match(reply, /apply|interested/i); // still nudges toward applying
+});
+
+test('language switches to Hinglish mid-conversation', async () => {
+  setIntent('provide_info');
+  groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
+  const session = fresh();
+  await processMessage(session, 'tell me about video watch and earn'); // en session
+  assert.equal(session.lang, 'en');
+  // Now the user writes in Roman Urdu — the reply must be Hinglish.
+  setIntent('provide_info');
+  groundedResult = { text: 'Humare paas 10 jobs hain: Video Watch and Earn, ...' };
+  const { reply, session: s } = await processMessage(session, 'konsi jobs hain?');
+  assert.equal(s.lang, 'hi');
+  assert.match(reply, /10 jobs|Video Watch and Earn/i);
+});
+
+test('English follow-up moves a Hinglish session back to English', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'haan, main apply karna chahata hoon'); // → hi
+  assert.equal(session.lang, 'hi');
+  setIntent('provide_info');
+  groundedResult = { text: 'The salary is paid weekly in PKR.' };
+  const { session: s } = await processMessage(session, 'what is the salary?');
+  assert.equal(s.lang, 'en'); // strong English marker flips back
+});
+
+test('explicit "i am interested" in awaiting_interest goes to pitch', async () => {
+  setIntent('provide_info');
+  groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
+  const session = fresh();
+  await processMessage(session, 'tell me about video watch and earn'); // → awaiting_interest
+  setIntent('apply');
+  const { reply, session: s } = await processMessage(session, 'i am interested');
+  assert.equal(s.state, 'awaiting_apply_decision');
+  assert.match(reply, /WhatsApp/); // pitch shown
+});
+
 test('done state: new message resets to a fresh conversation (no duplicate submit)', async () => {
   setIntent('apply');
   const session = fresh();
