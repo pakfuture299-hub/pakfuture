@@ -265,6 +265,48 @@ const REDIRECT_GUARDRAIL = {
   url: STORE.url,
 };
 
+/**
+ * Sentiment / small-talk replies. Handled deterministically (no AI call) so
+ * "how are you", "thanks", "bye" etc. always get a warm answer — even when
+ * the OpenAI API is down or slow. Keys mirror across en/hi.
+ */
+const SENTIMENTS = {
+  en: {
+    howAreYou:
+      "I'm doing great, thanks for asking! 😊 How can I help you with our online jobs today?",
+    thanks:
+      "You're most welcome! 😊 Anything else I can help you with — job details or applying?",
+    bye:
+      "Goodbye! 👋 Come back anytime if you have questions about our jobs. Have a great day!",
+    goodMorning:
+      'Good morning! ☀️ Welcome to JOB PORTAL GLOBAL 2. How can I help you find an online job today?',
+    goodAfternoon:
+      'Good afternoon! 😊 How can I help you with our online jobs today?',
+    goodEvening:
+      'Good evening! 🌙 How can I help you with our online jobs today?',
+    ok: 'Great! 👍 Let me know if you have any questions about our jobs or want to apply.',
+    intro:
+      "I'm the recruitment assistant for JOB PORTAL GLOBAL 2 💼. I can tell you about our online work-from-home jobs and help you apply. Ask me anything!",
+  },
+  hi: {
+    howAreYou:
+      'Main theek hoon, shukriya poochne ke liye! 😊 Aap ko hamari online jobs ke baare mein kya jaanna hai?',
+    thanks:
+      'Koi baat nahi! 😊 Kya main kisi aur cheez mein madad kar sakta hoon — job details ya apply karne mein?',
+    bye:
+      'Allah Hafiz! 👋 Jobs ke baare mein koi sawal ho toh kabhi bhi wapas aayein. Din acha guzrein!',
+    goodMorning:
+      'Subah bakhair! ☀️ JOB PORTAL GLOBAL 2 mein khush aamdeed. Aaj main aap ki online job dhoondhne mein kaise madad karoon?',
+    goodAfternoon:
+      'Do pehar bakhair! 😊 Online jobs ke baare mein kya jaanna hai?',
+    goodEvening:
+      'Shaam bakhair! 🌙 Online jobs ke baare mein kya jaanna hai?',
+    ok: 'Zabardast! 👍 Jobs ke baare mein koi sawal ho ya apply karna ho toh bataayein.',
+    intro:
+      'Main JOB PORTAL GLOBAL 2 ka recruitment assistant hoon 💼. Main aap ko hamari online ghar-baithay jobs ke baare mein bata sakta hoon aur apply karne mein madad kar sakta hoon. Kuch bhi poochein!',
+  },
+};
+
 /** Conversation rule texts shared across the flow. */
 const RULES = {
   shortGreeting: [
@@ -401,4 +443,5 @@ module.exports = {
   RULES,
   RULES_HI,
   PITCH,
+  SENTIMENTS,
 };

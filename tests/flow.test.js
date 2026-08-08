@@ -34,7 +34,7 @@ Module._load = function (request, parent, isMain) {
   return originalLoad.apply(this, arguments);
 };
 
-const { createSession, processMessage, detectLanguage, isYes, isNo } = require('../src/services/flow');
+const { createSession, processMessage, detectLanguage, isYes, isNo, detectSentiment } = require('../src/services/flow');
 const { TELEGRAM_HELP, PITCH } = require('../src/knowledge/base');
 
 function fresh() {
@@ -184,6 +184,60 @@ test('out_of_scope intent redirects', async () => {
   setIntent('out_of_scope');
   const { reply } = await processMessage(session, 'refund kya policy hai');
   assert.match(reply, /website/);
+});
+
+test('sentiment "how are you" gets a warm reply without any AI call', async () => {
+  // Even if the AI classify were to return out_of_scope, the deterministic
+  // sentiment handler fires first and must produce a warm reply.
+  setIntent('out_of_scope');
+  const session = fresh();
+  const { reply } = await processMessage(session, 'how are you?');
+  assert.match(reply, /great|theek hoon/i);
+  assert.doesNotMatch(reply, /website/); // never redirected
+});
+
+test('sentiment "thanks" / "bye" get warm replies', async () => {
+  setIntent('out_of_scope');
+  let { reply } = await processMessage(fresh(), 'thank you so much!');
+  assert.match(reply, /welcome|shukriya/i);
+  ({ reply } = await processMessage(fresh(), 'bye'));
+  assert.match(reply, /goodbye|allah hafiz/i);
+});
+
+test('sentiment reply follows the detected language (Hinglish)', async () => {
+  setIntent('out_of_scope');
+  const session = fresh();
+  const { reply } = await processMessage(session, 'aap kaise ho?');
+  assert.match(reply, /theek hoon/i);
+});
+
+test('detectSentiment returns the matching key', () => {
+  assert.equal(detectSentiment('how are you?'), 'howAreYou');
+  assert.equal(detectSentiment('shukriya bhai'), 'thanks');
+  assert.equal(detectSentiment('good morning'), 'goodMorning');
+  assert.equal(detectSentiment('okay'), 'ok');
+  assert.equal(detectSentiment('what is 2+2?'), null);
+});
+
+test('out-of-context question mid-flow redirects (awaiting_interest)', async () => {
+  setIntent('provide_info');
+  groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
+  const session = fresh();
+  await processMessage(session, 'tell me about video watch and earn'); // → awaiting_interest
+  setIntent('out_of_scope');
+  const { reply, session: s } = await processMessage(session, 'what is the weather in lahore?');
+  assert.match(reply, /website/);
+  assert.equal(s.state, 'awaiting_interest'); // flow preserved, not pushed forward
+});
+
+test('out-of-context question mid-flow redirects (awaiting_apply_decision)', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply'); // → awaiting_apply_decision
+  setIntent('out_of_scope');
+  const { reply, session: s } = await processMessage(session, 'who won the world cup?');
+  assert.match(reply, /website/);
+  assert.equal(s.state, 'awaiting_apply_decision');
 });
 
 test('done state: new message resets to a fresh conversation (no duplicate submit)', async () => {

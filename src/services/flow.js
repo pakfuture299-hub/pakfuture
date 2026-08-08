@@ -25,7 +25,14 @@
 
 const { classifyIntent, askGrounded } = require('./openai');
 const { submitCandidate } = require('./submission');
-const { RULES, RULES_HI, PITCH, TELEGRAM_HELP, STORE } = require('../knowledge/base');
+const {
+  RULES,
+  RULES_HI,
+  PITCH,
+  TELEGRAM_HELP,
+  STORE,
+  SENTIMENTS,
+} = require('../knowledge/base');
 const {
   isValidName,
   isValidPhone,
@@ -85,6 +92,45 @@ function isYes(text) {
 function isNo(text) {
   const t = normalizeText(text).toLowerCase();
   return NO_WORDS.some((w) => new RegExp(`(^|\\s)${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(t));
+}
+
+/**
+ * Deterministic sentiment / small-talk detection. Runs BEFORE any AI call so
+ * "how are you", "thanks", "bye" etc. always get a warm reply — even when
+ * OpenAI is slow or down (the widget previously showed "something went wrong"
+ * when the AI call failed mid-conversation).
+ * Returns a SENTIMENTS key ('howAreYou' | 'thanks' | 'bye' | 'goodMorning' |
+ * 'goodAfternoon' | 'goodEvening' | 'ok' | 'intro') or null when the message
+ * is not small talk.
+ */
+function detectSentiment(text) {
+  const t = normalizeText(text).toLowerCase();
+
+  if (/(\bhow are you\b|\bhow r u\b|\bkaise ho\b|\bkaisi ho\b|\bhow do you do\b|\bhow's it going\b|\bhow are things\b)/.test(t)) {
+    return 'howAreYou';
+  }
+  if (/(\bthanks\b|\bthank you\b|\bthank u\b|\bshukriya\b|\bthx\b|\bty\b|\bthankyou\b|\bmany thanks\b|\bthank-you\b)/.test(t)) {
+    return 'thanks';
+  }
+  if (/(\bbye\b|\bgoodbye\b|\bsee you\b|\bsee ya\b|\ballah hafiz\b|\bkhuda hafiz\b|\bgood night\b|\bgoodnight\b|\btake care\b)/.test(t)) {
+    return 'bye';
+  }
+  if (/(\bgood morning\b|\bsubah bakhair\b|\bmorning\b)/.test(t)) {
+    return 'goodMorning';
+  }
+  if (/(\bgood afternoon\b|\bdo pehar bakhair\b|\bafternoon\b)/.test(t)) {
+    return 'goodAfternoon';
+  }
+  if (/(\bgood evening\b|\bshaam bakhair\b|\bevening\b)/.test(t)) {
+    return 'goodEvening';
+  }
+  if (/^(\bok\b|\bokay\b|\boki\b|\bokayy\b|\balright\b|\bsure\b|\bfine\b|\btheek hai\b|\bthik hai\b|\bchalo\b|\bgo ahead\b|\bkar do\b|\bkar dein\b)$/.test(t)) {
+    return 'ok';
+  }
+  if (/(\bwho are you\b|\bap kon ho\b|\baap kaun ho\b|\bap kaun hain\b|\bwhat are you\b|\bwhat can you do\b|\btum kya kar sakte ho\b)/.test(t)) {
+    return 'intro';
+  }
+  return null;
 }
 
 /** Build a fresh session. */
@@ -176,6 +222,21 @@ async function processMessage(session, message) {
     session.lang = detectLanguage(text);
   }
 
+  // Sentiments / small talk are handled deterministically — no AI call, so
+  // they work even when OpenAI is down (and never end up in the generic
+  // redirect path). Only after the field-collection states (name/phone/
+  // telegram) does a sentiment answer NOT override the flow.
+  const sentiment = detectSentiment(text);
+  if (
+    sentiment &&
+    !['awaiting_name', 'awaiting_phone', 'awaiting_telegram', 'awaiting_confirm'].includes(
+      session.state
+    )
+  ) {
+    const R = session.lang === 'hi' ? SENTIMENTS.hi : SENTIMENTS.en;
+    return { reply: R[sentiment], session };
+  }
+
   // Re-route Telegram help requests at any point in the flow.
   const intent = await classifyIntent(text);
   if (intent.telegramHelpRequested || intent.intent === 'telegram_help') {
@@ -214,6 +275,9 @@ async function processMessage(session, message) {
 
     case 'awaiting_interest': {
       // Candidate just answered a job question; they may ask more or show intent.
+      if (intent.intent === 'out_of_scope') {
+        return { reply: rulesFor(session).outOfScopeRedirect, session };
+      }
       if (intent.intent === 'apply') {
         session.state = 'awaiting_apply_decision';
         return { reply: pitchAndAskReply(session), session };
@@ -243,6 +307,10 @@ async function processMessage(session, message) {
       if (isNo(text)) {
         session.state = 'done';
         return { reply: notInterestedReply(session), session };
+      }
+      // A clear out-of-context question while waiting for yes/no → redirect.
+      if (intent.intent === 'out_of_scope') {
+        return { reply: rulesFor(session).outOfScopeRedirect, session };
       }
       return { reply: rulesFor(session).applyAsk, session };
     }
@@ -333,4 +401,4 @@ async function processMessage(session, message) {
   }
 }
 
-module.exports = { processMessage, createSession, detectLanguage, isYes, isNo };
+module.exports = { processMessage, createSession, detectLanguage, detectSentiment, isYes, isNo };

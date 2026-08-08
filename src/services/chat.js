@@ -13,6 +13,12 @@
 const store = require('../store');
 const { createSession, processMessage } = require('./flow');
 const { normalizeText } = require('../utils/validation');
+const { REDIRECT_GUARDRAIL } = require('../knowledge/base');
+
+/** Never hand the widget a falsy reply — fall back to a safe redirect. */
+function safeReply(reply) {
+  return typeof reply === 'string' && reply.trim() ? reply : REDIRECT_GUARDRAIL.message;
+}
 
 /**
  * Turn a single visitor message into a reply string.
@@ -26,7 +32,7 @@ async function getReply(message, sessionId) {
   // Stateless mode (no session id): keep the old single-reply behavior.
   if (!sessionId) {
     const { reply } = await processMessage(createSession(), text || 'hello');
-    return { reply };
+    return { reply: safeReply(reply) };
   }
 
   let session = store.getSession(`widget:${sessionId}`);
@@ -37,7 +43,7 @@ async function getReply(message, sessionId) {
   const { reply, session: updated, submitted } = await processMessage(session, text || 'hello');
   store.saveSession(`widget:${sessionId}`, updated);
 
-  return { reply, sessionId, submitted };
+  return { reply: safeReply(reply), sessionId, submitted };
 }
 
 module.exports = { getReply };

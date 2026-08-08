@@ -9,6 +9,12 @@ const store = require('../store');
 const telegram = require('./telegram');
 const { createSession, processMessage } = require('./flow');
 const { normalizeText } = require('../utils/validation');
+const { REDIRECT_GUARDRAIL } = require('../knowledge/base');
+
+/** Never send a falsy reply — fall back to a safe redirect. */
+function safeReply(reply) {
+  return typeof reply === 'string' && reply.trim() ? reply : REDIRECT_GUARDRAIL.message;
+}
 
 /**
  * Handle a single incoming Telegram message for a chat.
@@ -27,7 +33,7 @@ async function handleMessage(chatId, text) {
   const { reply, session: updated } = await processMessage(session, message);
   store.saveSession(chatId, updated);
 
-  await telegram.sendMessage(chatId, reply);
+  await telegram.sendMessage(chatId, safeReply(reply));
   return reply;
 }
 
