@@ -65,7 +65,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\n\nconst now = new Date();\nconst ts = (item.timestamp && !isNaN(Date.parse(item.timestamp)))\n  ? new Date(item.timestamp).toISOString()\n  : now.toISOString();\n\nconst source = item.source || 'Shopify Chatbot';\n\nreturn [{\n  json: {\n    timestamp: ts,\n    name: String(item.name || '').trim(),\n    phone: String(item.phone || '').trim(),\n    telegram: String(item.telegram || '').trim(),\n    source: source,\n    status: item.status || 'New'\n  }\n}];",
+        "jsCode": "const item = $input.first().json;\n\nconst now = new Date();\nconst ts = (item.timestamp && !isNaN(Date.parse(item.timestamp)))\n  ? new Date(item.timestamp).toISOString()\n  : now.toISOString();\n\nconst source = item.source || 'Shopify Chatbot';\n\nreturn [{\n  json: {\n    timestamp: ts,\n    name: String(item.name || '').trim(),\n    phone: String(item.phone || '').trim(),\n    telegram: String(item.telegram || '').trim(),\n    job: String(item.job || '').trim(),\n    source: source,\n    status: item.status || 'New'\n  }\n}];",
         "language": "javaScript"
       },
       "id": "normalize-001",
@@ -92,6 +92,7 @@
             "name": "={{ $json.name }}",
             "phone": "={{ $json.phone }}",
             "telegram": "={{ $json.telegram }}",
+            "job": "={{ $json.job }}",
             "source": "={{ $json.source }}",
             "status": "={{ $json.status }}"
           },

@@ -24,7 +24,7 @@ const logger = require('../utils/logger');
  *   { ok: true, duplicate: false }                       — queued for delivery
  *   { ok: false, duplicate: true }                       — already applied
  */
-function submitCandidate({ name, phone, telegram }) {
+function submitCandidate({ name, phone, telegram, job }) {
   const normalizedPhone = normalizePhone(phone);
   const normalizedTelegram = normalizeTelegram(telegram);
   const fingerprint = candidateFingerprint(normalizedPhone, normalizedTelegram);
@@ -38,6 +38,7 @@ function submitCandidate({ name, phone, telegram }) {
     name,
     phone: normalizedPhone,
     telegram: normalizedTelegram,
+    job: job || '',
     timestamp: new Date().toISOString(),
     source: STORE.name,
   };

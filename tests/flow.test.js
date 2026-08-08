@@ -314,6 +314,68 @@ test('explicit "i am interested" in awaiting_interest goes to pitch', async () =
   assert.match(reply, /WhatsApp/); // pitch shown
 });
 
+test('loose job name is answered from knowledge, not redirected', async () => {
+  // "graphic design" is not in the knowledge base verbatim — the flow must
+  // match it to "Graphic Designer" deterministically and answer, never
+  // give the "I can only help with our jobs" redirect.
+  setIntent('provide_info');
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'graphic design kaise hota hai?');
+  assert.match(reply, /Graphic Designer/); // matched canonical name
+  assert.doesNotMatch(reply, /can only|sirf hamari|out of|website/i); // no redirect
+  assert.equal(s.state, 'awaiting_interest');
+  assert.equal(s.job, 'Graphic Designer'); // job captured in session
+});
+
+test('loose job name in awaiting_apply_decision is answered, not re-asked', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply'); // → awaiting_apply_decision
+  setIntent('provide_info');
+  const { reply, session: s } = await processMessage(session, 'data entry kya hai?');
+  assert.match(reply, /Data Entry/);
+  assert.equal(s.state, 'awaiting_apply_decision'); // still awaiting decision
+  assert.equal(s.job, 'Data Entry'); // job captured
+});
+
+test('job named during name collection is captured, not stored as name', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan'); // → awaiting_name
+  const { reply, session: s } = await processMessage(session, 'i want to apply for data entry');
+  assert.equal(s.state, 'awaiting_name'); // still asking for name
+  assert.equal(s.job, 'Data Entry'); // job captured
+  assert.equal(s.name, null); // NOT stored as name
+  assert.match(reply, /Data Entry/);
+  assert.match(reply, /name|naam/i);
+});
+
+test('"which job am i applying for" during name collection answers, not stored as name', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan'); // → awaiting_name
+  const { reply, session: s } = await processMessage(session, 'konsi job ke liye apply kar rahe?');
+  assert.equal(s.state, 'awaiting_name'); // still asking for name
+  assert.equal(s.name, null); // NOT stored as name
+  assert.match(reply, /name|naam/i);
+});
+
+test('chosen job appears in confirm screen and submission', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'i want to apply for graphic designer'); // job captured
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567');
+  const r = await processMessage(session, '@ali_r'); // → awaiting_confirm
+  assert.match(r.reply, /Graphic Designer/); // job in confirm screen
+  await processMessage(session, 'yes');
+  assert.equal(submissions[submissions.length - 1].job, 'Graphic Designer'); // job in submission
+});
+
 test('done state: new message resets to a fresh conversation (no duplicate submit)', async () => {
   setIntent('apply');
   const session = fresh();

@@ -63,7 +63,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Normalize the incoming payload before it is stored.\n// - trim strings\n// - fall back to the webhook timestamp when missing\n// - derive the spreadsheet columns: Timestamp, Name, Phone, Telegram, Source, Status\nconst item = $input.first().json;\n\nconst now = new Date();\nconst ts = (item.timestamp && !isNaN(Date.parse(item.timestamp)))\n  ? new Date(item.timestamp).toISOString()\n  : now.toISOString();\n\nconst source = item.source || 'Shopify Chatbot';\n\nreturn [{\n  json: {\n    timestamp: ts,\n    name: String(item.name || '').trim(),\n    phone: String(item.phone || '').trim(),\n    telegram: String(item.telegram || '').trim(),\n    source: source,\n    status: item.status || 'New'\n  }\n}];",
+        "jsCode": "// Normalize the incoming payload before it is stored.\n// - trim strings\n// - fall back to the webhook timestamp when missing\n// - derive the spreadsheet columns: Timestamp, Name, Phone, Telegram, Job, Source, Status\nconst item = $input.first().json;\n\nconst now = new Date();\nconst ts = (item.timestamp && !isNaN(Date.parse(item.timestamp)))\n  ? new Date(item.timestamp).toISOString()\n  : now.toISOString();\n\nconst source = item.source || 'Shopify Chatbot';\n\nreturn [{\n  json: {\n    timestamp: ts,\n    name: String(item.name || '').trim(),\n    phone: String(item.phone || '').trim(),\n    telegram: String(item.telegram || '').trim(),\n    job: String(item.job || '').trim(),\n    source: source,\n    status: item.status || 'New'\n  }\n}];",
         "language": "javaScript"
       },
       "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f03",
@@ -90,6 +90,7 @@
             "name": "={{ $json.name }}",
             "phone": "={{ $json.phone }}",
             "telegram": "={{ $json.telegram }}",
+            "job": "={{ $json.job }}",
             "source": "={{ $json.source }}",
             "status": "={{ $json.status }}"
           },
@@ -107,7 +108,7 @@
     {
       "parameters": {
         "chatId": "={{ $env.TELEGRAM_ADMIN_CHAT_ID }}",
-        "text": "🆕 New Candidate\n\nName: {{ $json.name }}\nPhone: {{ $json.phone }}\nTelegram: {{ $json.telegram }}\n\nSubmitted: {{ $json.timestamp }}",
+        "text": "🆕 New Candidate\n\nName: {{ $json.name }}\nPhone: {{ $json.phone }}\nTelegram: {{ $json.telegram }}\nJob: {{ $json.job }}\n\nSubmitted: {{ $json.timestamp }}",
         "additionalFields": {}
       },
       "id": "c87d6b35-6f7a-4a3b-bee2-92b1c24f5f05",

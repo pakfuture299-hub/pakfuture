@@ -40,6 +40,7 @@ const {
   normalizeText,
   isRedirectTrigger,
 } = require('../utils/validation');
+const { JOBS } = require('../knowledge/base');
 const logger = require('../utils/logger');
 
 const EMPTY_ANSWER_SENTINEL = 'EMPTY_ANSWER';
@@ -161,6 +162,39 @@ function looksLikeQuestion(text) {
   return /(\?$)|(^|\s)(konsi|kaunsi|kaun si|kya|kyun|kaise|kaisee|which|what|how|where|when|why|is|are|do|does|can|tell me|batao|bataiye|bataye|share)\b/i.test(t);
 }
 
+/**
+ * Deterministic job matcher: map a loose user phrasing ("graphic design",
+ * "video editing", "data entry") to the canonical job name in the knowledge
+ * base. Runs BEFORE the AI decides out-of-scope, so a candidate naming a real
+ * job never gets the "I can only help with our jobs" redirect.
+ * Returns the matched job object or null.
+ */
+const JOB_ALIASES = [
+  { job: JOBS[0], keys: ['video watch', 'video earn', 'watch and earn', 'watch video', 'watch ads', 'ad watching', 'ads watching'] },
+  { job: JOBS[1], keys: ['assignment'] },
+  { job: JOBS[2], keys: ['content writ', 'content'] },
+  { job: JOBS[3], keys: ['graphic', 'designer', 'design'] },
+  { job: JOBS[4], keys: ['travel', 'booking'] },
+  { job: JOBS[5], keys: ['video edit', 'video editor', 'editing'] },
+  { job: JOBS[6], keys: ['digital marketing', 'marketing'] },
+  { job: JOBS[7], keys: ['data entry', 'data typing', 'typing'] },
+  { job: JOBS[8], keys: ['virtual assistant', 'amazon va', 'amazon virtual'] },
+  { job: JOBS[9], keys: ['amazon fba', 'fba'] },
+];
+
+function matchJob(text) {
+  const t = normalizeText(text).toLowerCase();
+  for (const { job, keys } of JOB_ALIASES) {
+    if (keys.some((k) => t.includes(k))) return job;
+  }
+  return null;
+}
+
+/** A compact, friendly summary of a job (name + summary). */
+function jobSummary(job) {
+  return `${job.name}${job.summary ? ': ' + job.summary : ''}`;
+}
+
 /** Build a fresh session. */
 function createSession() {
   return {
@@ -169,6 +203,7 @@ function createSession() {
     name: null,
     phone: null,
     telegram: null,
+    job: null, // canonical job name the candidate is interested in
     updatedAt: Date.now(),
   };
 }
@@ -232,6 +267,31 @@ function extractFieldAnswer(message, field) {
 }
 
 /**
+ * Build a grounded answer about a job (or general knowledge) and attach the
+ * matched job to the session. Returns the reply text (without the interest
+ * prompt) or null when the answer is out of scope.
+ */
+async function answerQuestion(session, message) {
+  // Deterministic job match first: a candidate naming a real job (possibly
+  // by a loose name) always gets the job's details, never a redirect.
+  const matched = matchJob(message);
+  if (matched) {
+    session.job = matched.name;
+    return jobSummary(matched);
+  }
+  const answer = await askGrounded(message, session.lang);
+  if (answer.outOfScope) return null;
+  if (answer.applyFlow) return { applyFlow: true };
+  if (answer.telegramHelp) return { telegramHelp: true };
+  // Track the job when the model's answer names one of our jobs.
+  if (!session.job) {
+    const m = matchJob(answer.text);
+    if (m) session.job = m.name;
+  }
+  return answer.text;
+}
+
+/**
  * Handle one message for a session. Pure-ish: mutates and returns the session
  * alongside the reply, so the caller decides where to persist it.
  * @returns {Promise<{reply: string, session: object, submitted?: boolean}>}
@@ -288,8 +348,8 @@ async function processMessage(session, message) {
         // "konsi jobs hain?" mislabeled as greeting must still be answered
         // from the knowledge base, not given a greeting.
         if (looksLikeQuestion(text)) {
-          const answer = await askGrounded(message, session.lang);
-          if (answer.outOfScope) {
+          const answer = await answerQuestion(session, message);
+          if (answer === null) {
             reply = rulesFor(session).outOfScopeRedirect;
           } else if (answer.applyFlow) {
             reply = pitchAndAskReply(session);
@@ -297,7 +357,7 @@ async function processMessage(session, message) {
           } else if (answer.telegramHelp) {
             reply = telegramHelpReply(session);
           } else {
-            reply = answer.text + '\n\n' + rulesFor(session).interestPrompt;
+            reply = answer + '\n\n' + rulesFor(session).interestPrompt;
             session.state = 'awaiting_interest';
           }
         } else {
@@ -309,8 +369,8 @@ async function processMessage(session, message) {
         reply = pitchAndAskReply(session);
         session.state = 'awaiting_apply_decision';
       } else if (intent.intent === 'provide_info') {
-        const answer = await askGrounded(message, session.lang);
-        if (answer.outOfScope) {
+        const answer = await answerQuestion(session, message);
+        if (answer === null) {
           reply = rulesFor(session).outOfScopeRedirect;
         } else if (answer.applyFlow) {
           reply = pitchAndAskReply(session);
@@ -319,7 +379,7 @@ async function processMessage(session, message) {
           reply = telegramHelpReply(session);
         } else {
           // Real answer about a job — follow with a gentle interest prompt.
-          reply = answer.text + '\n\n' + rulesFor(session).interestPrompt;
+          reply = answer + '\n\n' + rulesFor(session).interestPrompt;
           session.state = 'awaiting_interest';
         }
       } else {
@@ -342,15 +402,15 @@ async function processMessage(session, message) {
       // pitch. The classifier may mislabel these as greeting/other, so a
       // message that *looks* like a question is treated as provide_info too.
       if (intent.intent === 'provide_info' || looksLikeQuestion(text)) {
-        const answer = await askGrounded(message, session.lang);
-        if (answer.outOfScope) return { reply: rulesFor(session).outOfScopeRedirect, session };
+        const answer = await answerQuestion(session, message);
+        if (answer === null) return { reply: rulesFor(session).outOfScopeRedirect, session };
         if (answer.applyFlow) {
           session.state = 'awaiting_apply_decision';
           return { reply: pitchAndAskReply(session), session };
         }
         if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
         // Still exploring — answer and keep the interest prompt.
-        return { reply: answer.text + '\n\n' + rulesFor(session).interestPrompt, session };
+        return { reply: answer + '\n\n' + rulesFor(session).interestPrompt, session };
       }
       // An explicit "yes / interested" or plain confirmation → pitch + apply ask.
       if (isYes(text) || /interest|interested|chahiye|chahie|karna chahta|karna chahti/i.test(text)) {
@@ -379,17 +439,41 @@ async function processMessage(session, message) {
       // A follow-up question while waiting for yes/no ("konsi jobs hain?")
       // should be answered, not absorbed into the pitch or repeated ask.
       if (intent.intent === 'provide_info' || looksLikeQuestion(text)) {
-        const answer = await askGrounded(message, session.lang);
-        if (answer.outOfScope) return { reply: rulesFor(session).outOfScopeRedirect, session };
+        const answer = await answerQuestion(session, message);
+        if (answer === null) return { reply: rulesFor(session).outOfScopeRedirect, session };
         if (answer.applyFlow) return { reply: pitchAndAskReply(session), session };
         if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
         // Answer the question, then still ask whether they want to apply.
-        return { reply: answer.text + '\n\n' + rulesFor(session).applyAsk, session };
+        return { reply: answer + '\n\n' + rulesFor(session).applyAsk, session };
       }
       return { reply: rulesFor(session).applyAsk, session };
     }
 
     case 'awaiting_name': {
+      // The candidate may name a job ("i want to apply for data entry") or
+      // ask "which job?" instead of giving their name. Capture the job and
+      // keep asking for the name — never store a job name as the person's name.
+      const matchedJob = matchJob(text);
+      if (matchedJob) {
+        session.job = matchedJob.name;
+        const R = rulesFor(session);
+        const ack = session.lang === 'hi'
+          ? `Theek hai — ${matchedJob.name} ke liye apply! 👍`
+          : `Got it — applying for ${matchedJob.name}! 👍`;
+        return { reply: ack + '\n\n' + R.askName, session };
+      }
+      // "which job am i applying for?" — answer and repeat the name ask.
+      if (/konsi job|kaun si job|which job|what job|job ke liye|apply kar rahe/i.test(text)) {
+        const R = rulesFor(session);
+        const current = session.job
+          ? (session.lang === 'hi'
+            ? `Aap ${session.job} ke liye apply kar rahe hain.`
+            : `You're applying for ${session.job}.`)
+          : (session.lang === 'hi'
+            ? 'Koi si bhi job ho sakti hai — jab apply karein toh bata dein.'
+            : 'You can apply for any of our jobs — just tell me which one you prefer.');
+        return { reply: current + '\n\n' + R.askName, session };
+      }
       const raw = extractFieldAnswer(message, 'name');
       if (raw === EMPTY_ANSWER_SENTINEL || !isValidName(raw)) {
         return { reply: rulesFor(session).nameInvalid || RULES.nameInvalid, session };
@@ -419,6 +503,7 @@ async function processMessage(session, message) {
       const R = rulesFor(session);
       const confirm =
         R.confirmHeader +
+        (session.job ? `\n• Job: ${session.job}` : '') +
         `\n• Name: ${session.name}\n• Phone: ${session.phone}\n• Telegram: ${session.telegram}` +
         `\n\n${R.confirmPrompt}`;
       return { reply: confirm, session };
