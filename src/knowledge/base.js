@@ -69,7 +69,25 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/assignment-writting',
     price: 'Rs.0.00',
     summary:
-      'Work from home writing assignments. Choose this skill based on your interest.',
+      'Work from home writing assignments for international clients and businesses (UK, USA, India, Pakistan, Bangladesh). Choose this skill based on your interest.',
+    tasks: [
+      'Write professional assignments and reports on given topics',
+      'Produce 100% original work — no copying from the internet and no AI (ChatGPT) use',
+      'Submit completed work before the deadline',
+    ],
+    requirements: [
+      'Anyone can apply — your writing skill matters more than your degree',
+      'Good, clear English reading and writing',
+      'A mobile or laptop with internet, and basic MS Word',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'Good income per completed project (assignment)',
+      'No fees — no registration or any other charge',
+      'Work from clients all around the world',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
   {
     id: 'content-writting',
@@ -77,7 +95,24 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/content-writting',
     price: 'Rs.0.00',
     summary:
-      'Work from home writing content. Choose this skill based on your interest.',
+      'Create powerful, engaging and well-researched content that connects with audiences and builds brands — from website copy to blogs and social media. Choose this skill based on your interest.',
+    tasks: [
+      'Write website copy, blogs and social media content',
+      'Produce well-researched, engaging content',
+      'Deliver content designed to inform, inspire and convert readers',
+    ],
+    requirements: [
+      'Good English writing and research skills',
+      'A mobile or laptop with internet',
+      'Attention to detail and creativity',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'A wide variety of writing work and clients',
+      'No fees — zero investment to start',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
   {
     id: 'graphic-designer',
@@ -85,7 +120,24 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/graphic-designer',
     price: 'Rs.0.00',
     summary:
-      'Work from home as a graphic designer. Choose this skill based on your interest.',
+      'Design eye-catching visuals that bring brands to life — logos, social media posts, banners and marketing materials. Choose this skill based on your interest.',
+    tasks: [
+      'Design logos, social media posts, banners and marketing materials',
+      'Create visuals that help brands stand out',
+      'Leave a lasting impression on the audience',
+    ],
+    requirements: [
+      'Basic design skills and creativity',
+      'Any design tool you are comfortable with (e.g. Photoshop, Canva, Illustrator)',
+      'A laptop or computer is helpful',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'Diverse creative projects from real clients',
+      'No fees — zero investment to start',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
   {
     id: 'travel-and-booking-support',
@@ -93,7 +145,24 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/travel-and-booking-support',
     price: 'Rs.0.00',
     summary:
-      'Work from home providing travel and booking support. Choose this skill based on your interest.',
+      'Help clients with smooth bookings for flights, hotels and trips — fast, easy and secure travel support. Choose this skill based on your interest.',
+    tasks: [
+      'Handle flight, hotel and trip bookings for clients',
+      'Provide fast, easy and secure travel bookings',
+      'Support clients with tickets, hotels and travel planning',
+    ],
+    requirements: [
+      'Good communication and customer-service skills',
+      'A mobile or laptop with internet',
+      'Attention to detail for bookings and schedules',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'International clients and travel work',
+      'No fees — zero investment to start',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
   {
     id: 'video-editing-job',
@@ -101,7 +170,25 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/video-editing-job',
     price: 'Rs.0.00',
     summary:
-      'Work from home as a video editor. Choose this skill based on your interest.',
+      'Edit videos professionally for social media, YouTube, ads and promotional content — suitable for beginners and experienced editors. Choose this skill based on your interest.',
+    tasks: [
+      'Cut and trim video clips',
+      'Add music, text and effects',
+      'Improve video quality',
+      'Create engaging and professional videos',
+    ],
+    requirements: [
+      'A video editing tool (e.g. CapCut, Premiere Pro, Filmora)',
+      'A laptop or computer is preferred',
+      'Creativity — suitable for both beginners and experienced editors',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'Build your skills while you earn',
+      'No fees — zero investment to start',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
   {
     id: 'digial-marketing',
@@ -109,7 +196,24 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/digial-marketing',
     price: 'Rs.0.00',
     summary:
-      'Work from home in digital marketing. Choose this skill based on your interest.',
+      'Help businesses grow online with smart marketing strategies — social media, ads, SEO and branding. Choose this skill based on your interest.',
+    tasks: [
+      'Run social media and ad campaigns',
+      'Work on SEO and branding',
+      'Bring more traffic, customers and success to businesses',
+    ],
+    requirements: [
+      'Basic digital marketing knowledge (social media, ads, SEO)',
+      'A mobile or laptop with internet',
+      'Willingness to learn new platforms',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'A fast-growing skill with real-world projects',
+      'No fees — zero investment to start',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
   {
     id: 'data-entry',
@@ -117,7 +221,30 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/data-entry',
     price: 'Rs.0.00',
     summary:
-      'Work from home doing data entry. Choose this skill based on your interest.',
+      'Reliable and accurate data entry to help online stores keep product information well organized and up to date. Choose this skill based on your interest.',
+    tasks: [
+      'Add and upload products',
+      'Edit and update product details (titles, descriptions, prices, SKUs, tags)',
+      'Upload and organize product images',
+      'Manage categories and collections',
+      'Bulk product uploads using spreadsheets or CSV files',
+      'Inventory and stock updates',
+      'Remove outdated or duplicate listings',
+      'Create clean, SEO-friendly product data',
+    ],
+    requirements: [
+      'Good accuracy and attention to detail',
+      'Basic computer and spreadsheet skills',
+      'A laptop or computer is preferred',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'Fast and reliable work with on-time delivery',
+      'Complete data confidentiality',
+      'No fees — zero investment to start',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
   {
     id: 'amazon-virtual-assisstant',
@@ -125,7 +252,32 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/amazon-virtual-assisstant',
     price: 'Rs.0.00',
     summary:
-      'Work from home as an Amazon Virtual Assistant. Choose this skill based on your interest.',
+      'Professional Amazon VA services to help sellers manage and grow their Amazon business smoothly — from listings to PPC ads. Choose this skill based on your interest.',
+    tasks: [
+      'Product listing and optimization',
+      'Keyword research and SEO',
+      'Product upload and variation setup',
+      'Inventory management',
+      'Order processing and tracking',
+      'Customer support and message handling',
+      'Product research (winning products)',
+      'Price and competitor analysis',
+      'PPC ads management',
+      'Store performance reporting',
+    ],
+    requirements: [
+      'Basic understanding of Amazon seller tools',
+      'A laptop or computer with internet',
+      'Fast and accurate work habits',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'Professional e-commerce projects',
+      '100% data confidentiality',
+      'No fees — zero investment to start',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
   {
     id: 'amazon-fba',
@@ -133,7 +285,24 @@ const JOBS = [
     url: 'https://job-portal-global-2.myshopify.com/products/amazon-fba',
     price: 'Rs.0.00',
     summary:
-      'Work from home with Amazon FBA. Choose this skill based on your interest.',
+      'Work with Amazon FBA (Fulfillment by Amazon) — Amazon stores, packs and ships products while sellers focus on growing their business. Choose this skill based on your interest.',
+    tasks: [
+      'Understand and work with Amazon FBA (Fulfillment by Amazon) operations',
+      'Let Amazon handle storage, packing, shipping, customer service and returns',
+      'Focus on growing the business while Amazon takes care of logistics',
+    ],
+    requirements: [
+      'Basic knowledge of Amazon and online selling',
+      'A laptop or computer with internet',
+      'Willingness to learn FBA processes',
+    ],
+    whyJoin: [
+      'Work from home — no office needed',
+      'Learn a high-demand e-commerce skill',
+      'No fees — zero investment to start',
+    ],
+    howToApply:
+      'Click "Apply Now" on the website and share your details (name, city, phone number) — our team will contact you on Telegram.',
   },
 ];
 
@@ -270,6 +439,28 @@ const REDIRECT_GUARDRAIL = {
  * "how are you", "thanks", "bye" etc. always get a warm answer — even when
  * the OpenAI API is down or slow. Keys mirror across en/hi.
  */
+/** Localized lead-in line for the job list reply (en / hi). */
+const JOBS_LIST_INTRO = {
+  en: 'Here are all the jobs we have available right now: 🚀',
+  hi: 'Humari is waqt ye jobs available hain: 🚀',
+};
+
+/**
+ * Build a bulleted list of every available job.
+ * @param {'en'|'hi'} [lang] language for the lead-in line (job names stay in English)
+ * @returns {string} the localized jobs list
+ */
+function jobsListReply(lang = 'en') {
+  const lines = [JOBS_LIST_INTRO[lang] || JOBS_LIST_INTRO.en];
+  for (const job of JOBS) lines.push(`• ${job.name}`);
+  lines.push(
+    lang === 'hi'
+      ? 'Kisi bhi job ke baare mein tafseel poochein, ya bataayein ke kis mein interested hain! 😊'
+      : 'Ask me for details about any of these, or tell me which one you are interested in! 😊'
+  );
+  return lines.join('\n');
+}
+
 const SENTIMENTS = {
   en: {
     howAreYou:
@@ -327,6 +518,8 @@ const RULES = {
   notInterested:
     'No problem at all! 😊 If you change your mind, just open the chat again and we\'ll get you started. Have a great day!',
   askName: 'Please share your full name to start your application. 📝',
+  nameInvalid:
+    "That doesn't look like a full name. Please send your name using letters only (2–80 characters). 📝",
   askPhone:
     'Great! Now please share your active contact number (digits only, e.g. 03001234567). 📱',
   askTelegram:
@@ -366,6 +559,7 @@ const PITCH = {
     `Hamara poora system aur department Telegram par shifted hai. Agar aap ko high-level earnings aur jobs chahiye, toh aap ko Telegram account banana parega.`,
     `Agar aap ko Telegram ka idea nahi hai, toh main wazeh kar doon ke Telegram ek bohot hi professional business platform hai. Yahan bari-bari companies aur professional departments shifted hain, jin ke bade Channels aur Groups par hazaron nahi balkey lakhon job holders add hain. Hamara system bhi bilkul aisa hi hai.`,
     `Agar aap ke zehan mein aata hai ke WhatsApp par yeh kaam kyun nahi ho sakta, toh main batata chaloon ke WhatsApp heavy business operations ke liye design hi nahi hua. WhatsApp bade departments aur un ke heavy workload ko handle nahi kar sakta aur us ka server/account ban ho jata hai.`,
+    `Telegram par hamari team se judne ke liye ye link kholen 👉 ${require('../config').inviteLink}`,
   ].join('\n\n'),
   en: [
     `Our entire system and department has moved to Telegram. If you want high-level earnings and jobs, you'll need a Telegram account.`,
@@ -448,4 +642,6 @@ module.exports = {
   RULES_HI,
   PITCH,
   SENTIMENTS,
+  jobsListReply,
+  JOBS_LIST_INTRO,
 };

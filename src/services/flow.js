@@ -32,6 +32,7 @@ const {
   TELEGRAM_HELP,
   STORE,
   SENTIMENTS,
+  jobsListReply,
 } = require('../knowledge/base');
 const {
   isValidName,
@@ -50,12 +51,12 @@ const HI_MARKERS = [
   'haan', 'nahi', 'nai', 'nhi', 'kya', 'karo', 'karein', 'chahiye', 'chahie',
   'aap', 'aapka', 'aapki', 'batao', 'bataiye', 'bhai', 'salam', 'kaam',
   'ji', 'hn', 'hain', 'hai', 'kahan', 'kaise', 'kis', 'mera', 'meri',
-  'mujhe', 'main', 'apna', 'apni', 'wala', 'wali', 'shukriya', 'masalan',
+  'mujhe', 'main', 'mein', 'me', 'apna', 'apni', 'wala', 'wali', 'shukriya', 'masalan',
   'kar', 'raha', 'rahi', 'karna', 'krna', 'mil', 'deta', 'deti',
   'konsi', 'kaunsi', 'kaun', 'kaun si', 'jobs', 'job', 'hota', 'hoti',
   'karte', 'karti', 'karta', 'bana', 'banna', 'aana', 'aati', 'aata',
   'kisam', 'kism', 'kitni', 'kitna', 'kahan se', 'kab', 'zaroorat',
-  'hai kya', 'hain kya',
+  'hai kya', 'hain kya', 'interested hu', 'interested hoon',
 ];
 
 /** Words that look like a "no" answer (Hinglish + English). */
@@ -65,6 +66,16 @@ const YES_WORDS = [
   'haan', 'han', 'hn', 'ji', 'ji haan', 'ji han', 'yes', 'yep', 'yeah',
   'pehle se bana', 'bana hua', 'hai', 'yes hai', 'haan hai',
 ];
+/** Words that explicitly signal interest in a job (Hinglish + English). */
+const INTEREST_WORDS = [
+  'interested', 'interest', 'apply', 'karna chahta', 'karna chahti',
+  'karna chahta hoon', 'karna chahti hoon', 'chahiye', 'chahie',
+  'karna hai', 'karni hai', 'join', 'apply karna', 'apply karni',
+  'apply karna hai', 'apply karni hai', 'mein interested',
+  'main interested', 'me interested', 'mujhe chahiye', 'mujhe ye chahiye',
+  'banna chahta', 'banna chahti', 'kaam karna', 'kaam karna hai',
+  'shuru karein', 'shuru karo', 'apply karte', 'apply karne',
+];
 
 /**
  * Heuristic-only: detect whether the candidate is writing Roman Urdu/Hinglish.
@@ -72,10 +83,8 @@ const YES_WORDS = [
  * otherwise two or more markers tip the balance.
  */
 function detectLanguage(text) {
-  const words = normalizeText(text)
-    .toLowerCase()
-    .split(/[^a-z0-9@+]+/)
-    .filter(Boolean);
+  const t = normalizeText(text).toLowerCase();
+  const words = t.split(/[^a-z0-9@+]+/).filter(Boolean);
 
   let hits = 0;
   for (const w of words) {
@@ -84,6 +93,9 @@ function detectLanguage(text) {
 
   const strong = ['haan', 'nahi', 'nai', 'nhi', 'ji', 'shukriya', 'chahiye', 'kya'];
   if (words.some((w) => strong.includes(w))) return 'hi';
+  // "mein/main ... hu/hoon/hain" interest/self phrasing is a strong Hinglish
+  // signal even though "interested" alone is English.
+  if (/(mein|main|me)\s+(interested|apply|banna|karna)\s+(hu|hoon|hain|hai)/.test(t)) return 'hi';
   return hits >= 2 ? 'hi' : 'en';
 }
 
@@ -101,6 +113,7 @@ function isStrongEnglish(text) {
 /** True when the message looks like a plain "yes" answer. */
 function isYes(text) {
   const t = normalizeText(text).toLowerCase();
+  if (/(which|what|konsi|kaun si|kis) job|job (ke liye|kis)|am i applying|apply kar rah/.test(t)) return false;
   return YES_WORDS.some((w) => new RegExp(`(^|\\s)${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(t));
 }
 
@@ -108,6 +121,56 @@ function isYes(text) {
 function isNo(text) {
   const t = normalizeText(text).toLowerCase();
   return NO_WORDS.some((w) => new RegExp(`(^|\\s)${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(t));
+}
+
+/**
+ * True when the message is an explicit interest in applying — "i am
+ * interested", "i want to apply", "mein interested hu", "main apply karna
+ * chahta hoon" etc. Checked in EVERY state (idle, after a job answer, even
+ * mid field collection) so an interest statement is never mistaken for a
+ * name / phone / telegram.
+ */
+function isInterested(text) {
+  const t = normalizeText(text).toLowerCase();
+  if (/^(\s|\b)*(yes|haan|han|hn|ji|yeah|yep|ok|okay|sure|theek hai|thik hai)(\s|\b|$)*$/.test(t)) return false;
+  if (isNo(t)) return false;
+  if (/(no |nahi |nai |nhi )+(thank|thanks|shukriya)/.test(t)) return false;
+  if (/(i am|i'm|im|mein|main|mujhe|mujhy|hum|we)\s+(not|nahi|nai|nhi)/.test(t)) return false;
+  return INTEREST_WORDS.some((w) => t.includes(w));
+}
+
+/**
+ * True when the candidate is asking for a list of available jobs — "konsi
+ * jobs hain", "which jobs are available", "jobs list" etc. Handled
+ * deterministically so the model can never mislabel it and the list is
+ * always complete.
+ */
+function isAskingJobList(text) {
+  const t = normalizeText(text).toLowerCase();
+  return (
+    /(konsi|kaunsi|kaun si|kitni|what|which)\s+(jobs|job|skills|skills jobs|jobs available|jobs hain|jobs ho)\b/.test(t) ||
+    /(jobs|job)\s+(available|hain|ho sakti|mil sakti|hain kya|available hain)\b/.test(t) ||
+    /^(jobs|job)( list| list?|s?)$/.test(t) ||
+    /list\s+(of\s+)?(jobs|job|available jobs|jobs available)/.test(t) ||
+    /(jobs|job)\s+list/.test(t)
+  );
+}
+
+/**
+ * True when a message clearly is NOT a personal-details answer while a field
+ * is being collected — greetings, yes/no, sentiments, question words, small
+ * talk. Such a message must never be stored as a name / phone / telegram.
+ * Returns true for "hi", "yes", "no", "ok", "how are you", "what?", etc.
+ */
+function isFieldNonAnswer(text) {
+  const t = normalizeText(text).toLowerCase();
+  if (/^(\s|\b)*(hi|hello|hey|salam|salaam|assalam|assalamo|assalamualaikum|salam alaikum|good morning|good afternoon|good evening|good night)(\s|\b|$)*/.test(t)) return true;
+  if (/^(\s|\b)*(yes|yep|yeah|no|nope|na|nahi|nai|nhi|haan|han|hn|ji|ok|okay|oki|sure|alright|fine|theek hai|thik hai|chalo|go ahead)(\s|\b|$)*$/.test(t)) return true;
+  if (detectSentiment(text)) return true;
+  if (/(\?$)|(^|\s)(kya|konsi|kaun si|which|what|how|where|when|why|is|are|do|does|can|tell|batao|bataiye|bataye)\b/i.test(t)) return true;
+  if (isInterested(text)) return true;
+  if (isAskingJobList(text)) return true;
+  return false;
 }
 
 /**
@@ -248,6 +311,10 @@ function matchJob(text) {
  */
 function jobSummary(job) {
   const lines = [`${job.name}${job.summary ? ': ' + job.summary : ''}`];
+  if (Array.isArray(job.tasks) && job.tasks.length) {
+    lines.push(`What you will do:`);
+    for (const t of job.tasks) lines.push(`• ${t}`);
+  }
   if (Array.isArray(job.requirements) && job.requirements.length) {
     lines.push(`Requirements:`);
     for (const r of job.requirements) lines.push(`• ${r}`);
@@ -308,18 +375,23 @@ function shortGreetingReply(session) {
 
 /**
  * The interest → pitch step: explains why Telegram, provides the setup links
- * (VPN / app / video), then asks whether they want to apply.
+ * (VPN / app / video), then asks whether they want to apply. When the
+ * candidate named a specific job, the pitch opens with an ack of that job so
+ * the choice is never lost.
  */
 function pitchAndAskReply(session) {
   const R = rulesFor(session);
   const pitch = session.lang === 'hi' ? PITCH.hi : PITCH.en;
   const links = rulesFor(session).noTelegramGuide || telegramHelpReply(session);
-  const parts = [
-    R.interestPrompt,
-    pitch,
-    links,
-    R.applyAsk,
-  ];
+  const parts = [];
+  if (session.job) {
+    parts.push(
+      session.lang === 'hi'
+        ? `Theek hai — ${session.job} ke liye apply! 👍`
+        : `Got it — applying for ${session.job}! 👍`
+    );
+  }
+  parts.push(R.interestPrompt, pitch, links, R.applyAsk);
   return parts.join('\n\n');
 }
 
@@ -352,6 +424,7 @@ function extractFieldAnswer(message, field) {
  * side-question (i.e. it's a real field answer or invalid input).
  */
 async function sideQuestionInField(session, message) {
+  if (isInterested(message)) return null; // "i'm interested" mid-field → handled by state
   if (asksSecurity(message)) {
     return rulesFor(session).securityReassurance + '\n\n' + fieldReask(session);
   }
@@ -382,6 +455,10 @@ async function answerQuestion(session, message) {
   if (matched) {
     session.job = matched.name;
     return jobSummary(matched);
+  }
+  // Deterministic "which jobs are available?" — never rely on the model.
+  if (isAskingJobList(message)) {
+    return jobsListReply(session.lang);
   }
   const answer = await askGrounded(message, session.lang);
   if (answer.outOfScope) return null;
@@ -429,6 +506,51 @@ async function processMessage(session, message) {
     return { reply: notInterestedReply(session), session };
   }
 
+  // Language detection — re-run on every message so a candidate who switches
+  // from English to Roman Urdu/Hinglish mid-conversation gets replies in the
+  // language they are actually writing. A session only flips to 'en' when the
+  // current message is clearly English (strong-en marker), and only flips to
+  // 'hi' on strong Hinglish markers — so one stray English word doesn't flip
+  // a Hinglish session back and forth. Runs in EVERY state, including field
+  // collection, so a name or phone typed in Roman Urdu doesn't switch the
+  // bot mid-application. It must run BEFORE the universal guards below so a
+  // Hinglish "mein interested hu" gets a Hinglish pitch.
+  {
+    const lang = detectLanguage(text);
+    if (lang === 'hi') {
+      session.lang = 'hi';
+    } else if (lang === 'en' && isStrongEnglish(text)) {
+      session.lang = 'en';
+    }
+  }
+
+  // Universal "which jobs are available?" — the list is answered
+  // deterministically from the knowledge base at ANY point in the flow, and
+  // the current field (if any) is re-asked so the application is never lost.
+  if (isAskingJobList(text)) {
+    const R = rulesFor(session);
+    if (['awaiting_name', 'awaiting_phone', 'awaiting_telegram', 'awaiting_confirm'].includes(session.state)) {
+      return { reply: jobsListReply(session.lang) + '\n\n' + fieldReask(session), session };
+    }
+    if (session.state === 'awaiting_apply_decision') {
+      return { reply: jobsListReply(session.lang) + '\n\n' + R.applyAsk, session };
+    }
+    session.state = 'awaiting_interest';
+    return { reply: jobsListReply(session.lang) + '\n\n' + R.interestPrompt, session };
+  }
+
+  // Universal "i am interested" — an explicit interest statement at ANY point
+  // (even mid field collection or at the confirm step) moves the flow to the
+  // pitch, and the chosen job is captured when the statement names one. The
+  // one state where this is skipped is awaiting_apply_decision, which already
+  // asks a yes/no question and consumes the answer itself.
+  if (isInterested(text) && session.state !== 'awaiting_apply_decision') {
+    const matched = matchJob(text);
+    if (matched) session.job = matched.name;
+    session.state = 'awaiting_apply_decision';
+    return { reply: pitchAndAskReply(session), session };
+  }
+
   // Universal Telegram-help fallback — checked before the model so a
   // misclassified "telegram nahi pata" during the flow never lands in a
   // validation-error loop.
@@ -443,21 +565,6 @@ async function processMessage(session, message) {
     const R = rulesFor(session);
     const reask = fieldReask(session);
     return { reply: reask ? R.securityReassurance + '\n\n' + reask : R.securityReassurance, session };
-  }
-
-  // Language detection — re-run on every message so a candidate who switches
-  // from English to Roman Urdu/Hinglish mid-conversation gets replies in the
-  // language they are actually writing. A session only flips to 'en' when the
-  // current message is clearly English (strong-en marker), and only flips to
-  // 'hi' on strong Hinglish markers — so one stray English word doesn't flip
-  // a Hinglish session back and forth.
-  if (session.state !== 'awaiting_name' && session.state !== 'awaiting_phone') {
-    const lang = detectLanguage(text);
-    if (lang === 'hi') {
-      session.lang = 'hi';
-    } else if (lang === 'en' && isStrongEnglish(text)) {
-      session.lang = 'en';
-    }
   }
 
   // In field-collection states, a back-out ("no thanks", "no, cancel",
@@ -602,6 +709,14 @@ async function processMessage(session, message) {
     case 'awaiting_apply_decision': {
       // Deterministic yes/no — no model call needed here.
       if (isYes(text)) {
+        // Capture a job named in the answer ("yes, apply for data entry").
+        const matchedJob = matchJob(text);
+        if (matchedJob) session.job = matchedJob.name;
+        // "yes" while the candidate has just shown interest in a specific job
+        // ("i am interested in data entry") — keep the pitch, don't skip it.
+        if (session.job && /interest|interested/.test(text)) {
+          return { reply: pitchAndAskReply(session), session };
+        }
         session.state = 'awaiting_name';
         return { reply: rulesFor(session).askName, session };
       }
@@ -628,14 +743,17 @@ async function processMessage(session, message) {
         // Answer the question, then still ask whether they want to apply.
         return { reply: answer + '\n\n' + rulesFor(session).applyAsk, session };
       }
+      // A candidate may skip the "yes" and go straight to their name — accept
+      // a valid-looking name and continue the flow.
+      if (isValidName(text)) {
+        session.name = text;
+        session.state = 'awaiting_phone';
+        return { reply: rulesFor(session).askPhone, session };
+      }
       return { reply: rulesFor(session).applyAsk, session };
     }
 
     case 'awaiting_name': {
-      // A side-question (security concern, job details, knowledge question)
-      // mid-application: answer it and re-ask for the name.
-      const side = await sideQuestionInField(session, message);
-      if (side) return { reply: side, session };
       // The candidate may name a job ("i want to apply for data entry") or
       // ask "which job?" instead of giving their name. Capture the job and
       // keep asking for the name — never store a job name as the person's name.
@@ -660,6 +778,15 @@ async function processMessage(session, message) {
             : 'You can apply for any of our jobs — just tell me which one you prefer.');
         return { reply: current + '\n\n' + R.askName, session };
       }
+      // Never store a greeting, yes/no, sentiment, or question as a name.
+      if (isFieldNonAnswer(text)) {
+        const R = rulesFor(session);
+        return { reply: R.nameInvalid || RULES.nameInvalid, session };
+      }
+      // A side-question (security concern, job details, knowledge question)
+      // mid-application: answer it and re-ask for the name.
+      const side = await sideQuestionInField(session, message);
+      if (side) return { reply: side, session };
       const raw = extractFieldAnswer(message, 'name');
       if (raw === EMPTY_ANSWER_SENTINEL || !isValidName(raw)) {
         return { reply: rulesFor(session).nameInvalid || RULES.nameInvalid, session };
@@ -670,6 +797,20 @@ async function processMessage(session, message) {
     }
 
     case 'awaiting_phone': {
+      // The candidate may name a job instead of a number — capture it and
+      // keep asking for the phone.
+      const matchedJob = matchJob(text);
+      if (matchedJob) {
+        session.job = matchedJob.name;
+        const ack = session.lang === 'hi'
+          ? `Theek hai — ${matchedJob.name} ke liye apply! 👍`
+          : `Got it — applying for ${matchedJob.name}! 👍`;
+        return { reply: ack + '\n\n' + rulesFor(session).askPhone, session };
+      }
+      // Never store a greeting, yes/no, sentiment, or question as a phone.
+      if (isFieldNonAnswer(text)) {
+        return { reply: rulesFor(session).phoneInvalid, session };
+      }
       // Side-question (security, job details, knowledge) → answer + re-ask.
       const side = await sideQuestionInField(session, message);
       if (side) return { reply: side, session };
@@ -683,6 +824,20 @@ async function processMessage(session, message) {
     }
 
     case 'awaiting_telegram': {
+      // The candidate may name a job instead of a Telegram id — capture it
+      // and keep asking for the Telegram username/number.
+      const matchedJob = matchJob(text);
+      if (matchedJob) {
+        session.job = matchedJob.name;
+        const ack = session.lang === 'hi'
+          ? `Theek hai — ${matchedJob.name} ke liye apply! 👍`
+          : `Got it — applying for ${matchedJob.name}! 👍`;
+        return { reply: ack + '\n\n' + rulesFor(session).askTelegram, session };
+      }
+      // Never store a greeting, yes/no, sentiment, or question as a Telegram id.
+      if (isFieldNonAnswer(text)) {
+        return { reply: rulesFor(session).telegramInvalid, session };
+      }
       // Side-question (security, job details, knowledge) → answer + re-ask.
       const side = await sideQuestionInField(session, message);
       if (side) return { reply: side, session };
@@ -703,6 +858,26 @@ async function processMessage(session, message) {
 
     case 'awaiting_confirm': {
       const lower = text.toLowerCase();
+
+      // The candidate may name a job to change their choice — capture it and
+      // keep the confirm prompt (a job name is never a confirm answer).
+      const matchedJob = matchJob(text);
+      if (matchedJob) {
+        session.job = matchedJob.name;
+        const ack = session.lang === 'hi'
+          ? `Theek hai — ${matchedJob.name} ke liye apply! 👍`
+          : `Got it — applying for ${matchedJob.name}! 👍`;
+        const R = rulesFor(session);
+        return {
+          reply:
+            ack +
+            '\n\n' +
+            R.confirmHeader +
+            `\n• Job: ${session.job}\n• Name: ${session.name}\n• Phone: ${session.phone}\n• Telegram: ${session.telegram}` +
+            `\n\n${R.confirmPrompt}`,
+          session,
+        };
+      }
 
       // Side-question (job details, knowledge, security) → answer + re-ask
       // the confirm prompt, so the pending application isn't lost.
@@ -766,6 +941,8 @@ module.exports = {
   detectSentiment,
   isYes,
   isNo,
+  isInterested,
+  isAskingJobList,
   isCancelling,
   asksTelegramHelp,
   asksSecurity,

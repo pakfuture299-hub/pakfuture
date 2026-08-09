@@ -263,10 +263,11 @@ test('"konsi jobs hain" as first message is answered, not greeted', async () => 
   // The classifier may mislabel "konsi jobs hain?" as greeting — the flow
   // must still answer the question from the knowledge base.
   setIntent('greeting'); // simulate misclassification
-  groundedResult = { text: 'We have 10 jobs: Video Watch and Earn, Assignment Writing, ...' };
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'konsi jobs hain?');
-  assert.match(reply, /10 jobs|Video Watch and Earn/i); // answered from knowledge
+  assert.match(reply, /Video Watch and Earn/); // the list is deterministic
+  assert.match(reply, /Amazon FBA/); // all jobs listed
+  assert.doesNotMatch(reply, /WhatsApp|protonvpn/); // not a pitch
   assert.equal(s.state, 'awaiting_interest');
 });
 
@@ -326,7 +327,8 @@ test('loose job name is answered from knowledge, not redirected', async () => {
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'graphic design kaise hota hai?');
   assert.match(reply, /Graphic Designer/); // matched canonical name
-  assert.doesNotMatch(reply, /can only|sirf hamari|out of|website/i); // no redirect
+  assert.match(reply, /What you will do/); // full details, not a one-liner
+  assert.doesNotMatch(reply, /can only|sirf hamari|out of scope/i); // no redirect
   assert.equal(s.state, 'awaiting_interest');
   assert.equal(s.job, 'Graphic Designer'); // job captured in session
 });
@@ -342,17 +344,17 @@ test('loose job name in awaiting_apply_decision is answered, not re-asked', asyn
   assert.equal(s.job, 'Data Entry'); // job captured
 });
 
-test('job named during name collection is captured, not stored as name', async () => {
+test('job named during name collection captures the job and goes to pitch', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'haan'); // → awaiting_name
   const { reply, session: s } = await processMessage(session, 'i want to apply for data entry');
-  assert.equal(s.state, 'awaiting_name'); // still asking for name
+  assert.equal(s.state, 'awaiting_apply_decision'); // interest → pitch
   assert.equal(s.job, 'Data Entry'); // job captured
   assert.equal(s.name, null); // NOT stored as name
   assert.match(reply, /Data Entry/);
-  assert.match(reply, /name|naam/i);
+  assert.match(reply, /WhatsApp/); // pitch shown
 });
 
 test('"which job am i applying for" during name collection answers, not stored as name', async () => {
@@ -371,7 +373,9 @@ test('chosen job appears in confirm screen and submission', async () => {
   const session = fresh();
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'haan');
+  // Job named during name collection → interest → pitch → back to flow.
   await processMessage(session, 'i want to apply for graphic designer'); // job captured
+  await processMessage(session, 'haan'); // yes to the pitch → awaiting_name
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
   const r = await processMessage(session, '@ali_r'); // → awaiting_confirm
@@ -466,7 +470,7 @@ test('RUTHLESS: "amazon fba" alone (out_of_scope classifier) is answered, not re
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'amazon fba');
   assert.match(reply, /Amazon FBA/); // deterministic matcher wins
-  assert.doesNotMatch(reply, /can only|sirf hamari|website/i);
+  assert.doesNotMatch(reply, /can only|sirf hamari|out of scope/i);
   assert.equal(s.state, 'awaiting_interest');
   assert.equal(s.job, 'Amazon FBA');
 });
@@ -685,4 +689,274 @@ test('FLOW: "no problem" mid-field does NOT close the application', async () => 
   await processMessage(session, '03001234567'); // → awaiting_telegram
   const { session: s } = await processMessage(session, 'no problem');
   assert.equal(s.state, 'awaiting_telegram'); // flow preserved
+});
+
+// ---- NEW SCENARIOS: full job details, job lists, interest handling, field guards ----
+
+test('JOB DETAILS: asking about a job gives full details, not a one-liner', async () => {
+  setIntent('provide_info');
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'what is data entry?');
+  assert.match(reply, /Data Entry/);
+  assert.match(reply, /What you will do/); // tasks section
+  assert.match(reply, /Requirements/); // requirements section
+  assert.match(reply, /Why join/); // benefits section
+  assert.match(reply, /How to apply/); // how to apply
+  assert.match(reply, /SEO-friendly product data/); // real task detail
+  assert.equal(s.state, 'awaiting_interest');
+  assert.equal(s.job, 'Data Entry');
+});
+
+test('JOB DETAILS: every job has a rich summary (tasks/requirements/whyJoin)', () => {
+  const { JOBS } = require('../src/knowledge/base');
+  for (const job of JOBS) {
+    assert.ok(Array.isArray(job.tasks) && job.tasks.length > 0, `${job.name} needs tasks`);
+    assert.ok(Array.isArray(job.requirements) && job.requirements.length > 0, `${job.name} needs requirements`);
+    assert.ok(Array.isArray(job.whyJoin) && job.whyJoin.length > 0, `${job.name} needs whyJoin`);
+    assert.ok(typeof job.howToApply === 'string' && job.howToApply.length > 0, `${job.name} needs howToApply`);
+  }
+});
+
+test('JOB LIST: "which jobs are available" lists ALL jobs deterministically', async () => {
+  setIntent('out_of_scope'); // even if the classifier fails
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'which jobs are available?');
+  assert.match(reply, /Video Watch and Earn/);
+  assert.match(reply, /Assignment Writing/);
+  assert.match(reply, /Content Writing/);
+  assert.match(reply, /Graphic Designer/);
+  assert.match(reply, /Travel and Booking Support/);
+  assert.match(reply, /Video Editing Job/);
+  assert.match(reply, /Digital Marketing/);
+  assert.match(reply, /Data Entry/);
+  assert.match(reply, /Amazon Virtual Assistant/);
+  assert.match(reply, /Amazon FBA/);
+  assert.equal(s.state, 'awaiting_interest'); // nudged toward interest
+});
+
+test('JOB LIST: Hinglish "konsi jobs hain" lists ALL jobs in Hinglish', async () => {
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'konsi jobs available hain?');
+  assert.equal(s.lang, 'hi');
+  assert.match(reply, /Video Watch and Earn/);
+  assert.match(reply, /Amazon FBA/);
+  assert.match(reply, /jobs available hain/);
+  assert.equal(s.state, 'awaiting_interest');
+});
+
+test('JOB LIST: "jobs" alone lists all jobs', async () => {
+  const session = fresh();
+  const { reply } = await processMessage(session, 'jobs');
+  assert.match(reply, /Video Watch and Earn/);
+  assert.match(reply, /Amazon FBA/);
+});
+
+test('JOB LIST: asked while collecting a field answers and re-asks the field', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan'); // → awaiting_name
+  const { reply, session: s } = await processMessage(session, 'what jobs do you have?');
+  assert.match(reply, /Video Watch and Earn/); // list answered
+  assert.match(reply, /name|naam/i); // field re-asked
+  assert.equal(s.state, 'awaiting_name');
+  assert.equal(s.name, null);
+});
+
+test('INTEREST: "i am interested" from idle goes straight to pitch', async () => {
+  setIntent('out_of_scope');
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'i am interested');
+  assert.equal(s.state, 'awaiting_apply_decision');
+  assert.match(reply, /WhatsApp/);
+});
+
+test('INTEREST: "mein interested hu" from idle goes to Hinglish pitch', async () => {
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'mein interested hu');
+  assert.equal(s.lang, 'hi');
+  assert.equal(s.state, 'awaiting_apply_decision');
+  assert.match(reply, /WhatsApp/);
+  assert.match(reply, /Telegram par hamari team se judne/); // Hinglish pitch has the join link
+  assert.match(reply, /t\.me/);
+});
+
+test('INTEREST: "i am interested in data entry" names the job and pitches', async () => {
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'i am interested in data entry');
+  assert.equal(s.job, 'Data Entry');
+  assert.equal(s.state, 'awaiting_apply_decision');
+  assert.match(reply, /Data Entry/); // job ack in the pitch
+  assert.match(reply, /WhatsApp/);
+});
+
+test('INTEREST: "interested" while asked for name is never stored as a name', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan'); // → awaiting_name
+  const { reply, session: s } = await processMessage(session, 'interested');
+  assert.equal(s.state, 'awaiting_apply_decision'); // went to pitch, not stored
+  assert.equal(s.name, null);
+  assert.match(reply, /WhatsApp/);
+});
+
+test('INTEREST: "mein interested hu" mid-phone answers with pitch, phone not stored', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  const { reply, session: s } = await processMessage(session, 'haan main interested hu');
+  assert.equal(s.lang, 'hi');
+  assert.equal(s.state, 'awaiting_apply_decision'); // pitch
+  assert.equal(s.phone, null);
+  assert.match(reply, /WhatsApp/);
+});
+
+test('INTEREST: "i want to apply" while asked for phone goes to pitch, not a name/phone', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  const { reply, session: s } = await processMessage(session, 'i want to apply for data entry');
+  assert.equal(s.state, 'awaiting_apply_decision');
+  assert.equal(s.job, 'Data Entry');
+  assert.equal(s.phone, null);
+  assert.match(reply, /Data Entry/);
+});
+
+test('INTEREST: "main apply karna chahta hoon" at confirm re-asks confirm, no submission', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567');
+  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  const before = submissions.length;
+  const { reply, session: s } = await processMessage(session, 'main apply karna chahta hoon');
+  assert.equal(s.state, 'awaiting_apply_decision');
+  assert.equal(submissions.length, before); // not submitted by an interest statement
+  assert.match(reply, /WhatsApp/);
+});
+
+test('LANG: Hinglish apply → Hinglish pitch with join link', async () => {
+  setIntent('apply');
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'haan, main apply karna chahata hoon');
+  assert.equal(s.lang, 'hi');
+  assert.equal(s.state, 'awaiting_apply_decision');
+  assert.match(reply, /WhatsApp/);
+  assert.match(reply, /t\.me/); // join link in Hinglish pitch
+});
+
+test('LANG: English interest while collecting name keeps the bot in English', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'haan, main apply karna chahata hoon'); // → hi
+  await processMessage(session, 'yes'); // → awaiting_name (Hinglish askName)
+  const { reply, session: s } = await processMessage(session, 'Ali Raza'); // name
+  assert.equal(s.lang, 'hi'); // name typed in English letters does NOT flip to en
+  assert.match(reply, /number|phone/i); // still Hinglish askPhone
+});
+
+test('FIELD: greeting "hi" while asked for name is not stored as the name', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan'); // → awaiting_name
+  const { reply, session: s } = await processMessage(session, 'hi');
+  assert.equal(s.state, 'awaiting_name'); // still asking
+  assert.equal(s.name, null); // "hi" not stored
+  assert.match(reply, /name|naam/i); // re-ask
+});
+
+test('FIELD: "yes" while asked for name is not stored as the name', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan'); // → awaiting_name
+  const { reply, session: s } = await processMessage(session, 'yes');
+  assert.equal(s.state, 'awaiting_name'); // still asking
+  assert.equal(s.name, null);
+  assert.match(reply, /name|naam/i);
+});
+
+test('FIELD: sentiment "how are you" while asked for phone re-asks phone', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  const { reply, session: s } = await processMessage(session, 'how are you?');
+  assert.equal(s.state, 'awaiting_phone'); // flow preserved
+  assert.equal(s.phone, null);
+  assert.match(reply, /number|phone/i);
+});
+
+test('FIELD: "what is this job about" mid-name is answered, name re-asked', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan'); // → awaiting_name
+  setIntent('provide_info');
+  groundedResult = { text: 'Data Entry: Work from home doing data entry.' };
+  const { reply, session: s } = await processMessage(session, 'what is this job about?');
+  assert.equal(s.state, 'awaiting_name'); // flow preserved
+  assert.equal(s.name, null);
+  assert.match(reply, /name|naam/i); // name re-asked
+});
+
+test('FIELD: irrelevant question mid-phone re-asks phone, not stored', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  setIntent('out_of_scope');
+  groundedResult = { outOfScope: true };
+  const { reply, session: s } = await processMessage(session, 'who is the president?');
+  assert.equal(s.state, 'awaiting_phone'); // flow preserved
+  assert.equal(s.phone, null);
+});
+
+test('FIELD: job changed at confirm captures the new job and goes to pitch', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'Ali Raza');
+  await processMessage(session, '03001234567');
+  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  const before = submissions.length;
+  const { reply, session: s } = await processMessage(session, 'video editing job karna hai');
+  assert.equal(s.job, 'Video Editing Job'); // job captured
+  assert.equal(s.state, 'awaiting_apply_decision'); // interest → pitch
+  assert.equal(submissions.length, before); // not submitted by an interest statement
+  assert.match(reply, /Video Editing Job/); // pitch acks the job
+  assert.match(reply, /WhatsApp/);
+});
+
+test('FIELD: "which job am i applying for" mid-phone answers and re-asks phone', async () => {
+  setIntent('apply');
+  const session = fresh();
+  await processMessage(session, 'i want to apply');
+  await processMessage(session, 'haan');
+  await processMessage(session, 'i am interested in graphic designer'); // → pitch → yes
+  await processMessage(session, 'haan'); // → awaiting_name
+  await processMessage(session, 'Ali Raza'); // → awaiting_phone
+  const { reply, session: s } = await processMessage(session, 'which job am i applying for?');
+  assert.equal(s.state, 'awaiting_phone');
+  assert.equal(s.phone, null);
+  assert.match(reply, /Graphic Designer/); // answers which job
+  assert.match(reply, /number|phone/i); // phone re-asked
+});
+
+test('ENGLISH: english answer to a Hinglish question responds in english', async () => {
+  const session = fresh();
+  const { reply, session: s } = await processMessage(session, 'what is the salary?');
+  assert.equal(s.lang, 'en');
+  assert.doesNotMatch(reply, /aap|hain|hai/i); // not Hinglish
 });
