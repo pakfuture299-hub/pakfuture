@@ -96,10 +96,12 @@ const INTENTS = [
     id: 'INTENT_06_JOB_TIMINGS',
     name: 'Job Timings & Working Hours',
     triggers: [
-      'job timing kia hain', 'timings kia hai', 'kitne ghante kaam hai', 'time kia hai',
-      'working hours', 'part time hai ya full time', 'kaam ka time', 'how many hours',
-      'what are the timings', 'what are the hours', 'how many hours a day', 'hours per day',
-      'part time or full time', 'job timings', 'kaam ke ghante',
+      'job timing kia hain', 'timings kia hai', 'timing kia hai', 'job timing kia hai',
+      'kitne ghante kaam hai', 'time kia hai', 'working hours', 'part time hai ya full time',
+      'kaam ka time', 'how many hours', 'what are the timings', 'what are the hours',
+      'how many hours a day', 'hours per day', 'part time or full time', 'job timings',
+      'kaam ke ghante', 'timing kya hai', 'timings kya hai', 'kab kaam karna hai',
+      'kaam kitne ghante', 'daily kitne ghante',
     ],
     reply:
       'Hamare portal par flexible timings hain! ⏰ Aap apni marzi aur suhoolat ke mutabiq part-time ya full-time kaam kar sakte hain. Daily kisi bhi waqt 2 se 4 ghante de kar aap behtareen earning kar sakte hain. ⏱️',
@@ -119,10 +121,13 @@ const INTENTS = [
     id: 'INTENT_08_REQUIREMENTS',
     name: 'Requirements & Qualifications',
     triggers: [
-      'qualification kia chahiye', 'parhai kitni chahiye', 'age limit', 'experience chahiye',
+      'qualification kia chahiye', 'qualification chahiye', 'qualification chahie',
+      'parhai kitni chahiye', 'age limit', 'experience chahiye', 'experience chahie',
       'kaun kar sakta hai', 'study requirement', 'do i need experience', 'qualification needed',
       'qualification required', 'what qualifications', 'education required', 'any qualification',
       'need experience', 'experience required', 'who can apply', 'who can do this',
+      'kya qualification chahiye', 'kitni parhai', 'kitni padhai chahiye', 'age kya hai',
+      'kya age chahiye', 'experience kitna',
     ],
     reply:
       'Is kaam ke liye kisi high qualification ya pehle se tajurbe (experience) ki zaroorat nahi hai. 🎓 Agar aap ke paas smartphone aur basic internet connection hai, toh aap yeh kaam asani se kar sakte hain. 📲',

@@ -175,7 +175,19 @@ function isInterested(text) {
   if (isNo(t)) return false;
   if (/(no |nahi |nai |nhi )+(thank|thanks|shukriya)/.test(t)) return false;
   if (/(i am|i'm|im|mein|main|mujhe|mujhy|hum|we)\s+(not|nahi|nai|nhi)/.test(t)) return false;
-  return INTEREST_WORDS.some((w) => t.includes(w));
+  // A question is never an interest statement — "qualification chahiye?",
+  // "kaam karna hai?", "kitni salary chahiye" are intent questions, not
+  // interest. The deterministic PDF matcher already handled exact triggers;
+  // this is only for genuine apply/interest phrasings not in the PDF.
+  if (/(\?$)|(^|\s)(kya|konsi|kaun si|which|what|how|where|when|why|is|are|do|does|can|batao|bataiye|bataye|kitni|kitna|kia|hai kya)\b/i.test(t)) return false;
+  // Require a self-directed apply/interest phrase — not a bare word.
+  return (
+    /(i am|i'm|im|mein|main|me|hum|we|mujhe|mujhy|haan|yes)\s+(interested|apply|join|banna|karna|chahata|chahti|chahunga|chahungi)/.test(t) ||
+    /(interested|apply|join)\s+(in|for|karna|karne|karte|karti)/.test(t) ||
+    /^(interested|apply|join|banna chahta|banna chahti|kaam karna chahta|kaam karna chahti)\b/.test(t) ||
+    /(apply karna|apply karni|apply karne|apply karte|apply karti)\b/.test(t) ||
+    /(mujhe|mujhy|main|mein|hum|we)\s+(yeh|ye|is|job|kaam)\s+(chahiye|chahie|karna|karni)/.test(t)
+  );
 }
 
 /**
@@ -506,13 +518,34 @@ async function processMessage(session, message) {
   const text = normalizeText(message);
   if (!text) return { reply: shortGreetingReply(session), session };
 
+  // A completed applicant who writes again resets to a fresh conversation —
+  // this must run BEFORE the deterministic intent dispatch so a greeting or
+  // question after submission is treated as a new conversation, not answered
+  // in the done state. Submission-level duplicate detection still protects
+  // the sheet if they re-apply with the same details.
+  if (session.state === 'done') {
+    session.state = 'idle';
+    return processMessage(session, message);
+  }
+
   // Deterministic PDF intent match — runs FIRST so every trigger keyword in
   // the PDF gets its EXACT answer, never a heuristic misclassification.
-  // Pure knowledge intents (02,03,04,06,07,08,09,11) are answered verbatim in
-  // any state; in a field-collection state the field re-ask is appended so
-  // the application is never lost.
+  // ALL 12 intents resolve here; knowledge intents answer the exact script in
+  // any state, flow intents transition the guided flow. In a field-collection
+  // state a knowledge answer appends the field re-ask so the application is
+  // never lost.
   const pdfMatch = matchPdfIntentObject(text);
   if (pdfMatch && KNOWLEDGE_INTENT_IDS.has(pdfMatch.intent.id)) {
+    const reask = fieldReask(session);
+    return {
+      reply: reask ? pdfMatch.intent.reply + '\n\n' + reask : pdfMatch.intent.reply,
+      session,
+    };
+  }
+  // INTENT_01 (Welcome) — "hi", "hello", "salam", "info", "start", "details".
+  // Reply with the EXACT PDF welcome script. In a field-collection state the
+  // field is re-asked so the application is never lost.
+  if (pdfMatch && pdfMatch.intent.id === 'INTENT_01_WELCOME') {
     const reask = fieldReask(session);
     return {
       reply: reask ? pdfMatch.intent.reply + '\n\n' + reask : pdfMatch.intent.reply,

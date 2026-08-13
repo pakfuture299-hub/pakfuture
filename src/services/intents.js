@@ -33,6 +33,29 @@ function normalizeKeywords(input) {
     .trim();
 }
 
+/**
+ * Escape a string for use inside a RegExp.
+ */
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Match a message against a trigger phrase with WORD-BOUNDARY semantics:
+ * the trigger must appear as whole words, not as a substring inside a longer
+ * word. "hi" must NOT match inside "nahi"/"chahiye"; "data entry" must not
+ * match inside "metadata entrypoint". A match is a run of the trigger's words
+ * separated by single spaces, bounded by non-word characters (or string
+ * edges) on both sides.
+ */
+function triggerMatches(message, key) {
+  const escaped = key.split(' ').map(escapeRegExp).join('\\s+');
+  // Lookbehind/lookahead: not preceded/followed by a word char (a-z0-9).
+  // On older Node, use a manual boundary check instead of lookbehind.
+  const idx = message.search(new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`));
+  return idx !== -1;
+}
+
 /** Build a lookup: trigger phrase -> intent object, with per-intent trigger arrays. */
 function buildMatcher(intents) {
   const triggers = [];
@@ -62,7 +85,7 @@ function createIntentMatcher(intents) {
       const t = normalizeKeywords(message);
       if (!t) return null;
       for (const { key, intent } of triggers) {
-        if (t.includes(key)) {
+        if (triggerMatches(t, key)) {
           return { intent, trigger: key };
         }
       }
@@ -71,4 +94,4 @@ function createIntentMatcher(intents) {
   };
 }
 
-module.exports = { createIntentMatcher, normalizeKeywords };
+module.exports = { createIntentMatcher, normalizeKeywords, triggerMatches };
