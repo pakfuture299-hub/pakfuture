@@ -35,7 +35,7 @@ Module._load = function (request, parent, isMain) {
 };
 
 const { createSession, processMessage, detectLanguage, isYes, isNo, detectSentiment } = require('../src/services/flow');
-const { INTENTS } = require('../src/knowledge/base');
+const { INTENTS, RULES, RULES_HI } = require('../src/knowledge/base');
 
 function fresh() {
   return createSession();
@@ -77,28 +77,22 @@ test('greeting gets a SHORT intro, no pitch, stays in idle', async () => {
   assert.match(reply, /Welcome|hello|hi/i);
 });
 
-test('job info answer → interest prompt → awaiting_interest', async () => {
+test('job info answer → exact INTENT_10 script, no extra prompts', async () => {
   setIntent('provide_info');
   groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'tell me about video watch and earn');
-  assert.equal(s.state, 'awaiting_interest');
-  assert.match(reply, /Video Watch and Earn/);
-  assert.match(reply, /interested/i); // gentle nudge, no pitch yet
-  // The PDF grounds job questions in INTENT_10 + the jobs list — that IS the
-  // only per-job script the PDF defines, so a job answer legitimately
-  // contains the WhatsApp-vs-Telegram explanation.
+  assert.equal(s.state, 'awaiting_apply_decision'); // INTENT_10 moves to apply decision
+  assert.equal(reply, INTENTS[9].reply); // EXACT PDF script, byte-for-byte
 });
 
-test('apply intent from idle → pitch + links + apply ask', async () => {
+test('apply intent from idle → exact INTENT_10 script + apply ask', async () => {
   setIntent('apply');
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'i want to apply');
   assert.equal(s.state, 'awaiting_apply_decision');
-  assert.match(reply, /WhatsApp/); // INTENT_10 pitch present
-  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=ch\.protonvpn\.android/); // INTENT_11 tutorial links present
-  assert.match(reply, /youtube\.com\/shorts\//);
-  assert.match(reply, /interested in applying/i);
+  assert.ok(reply.startsWith(INTENTS[9].reply)); // INTENT_10 pitch present
+  assert.match(reply, /interested in applying/i); // flow's apply question
 });
 
 test('Hinglish apply → Hinglish pitch', async () => {
@@ -222,14 +216,10 @@ test('detectSentiment returns the matching key', () => {
 });
 
 test('out-of-context question mid-flow redirects (awaiting_interest)', async () => {
-  setIntent('provide_info');
-  groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
-  const session = fresh();
-  await processMessage(session, 'tell me about video watch and earn'); // → awaiting_interest
   setIntent('out_of_scope');
-  // The defensive path consults the knowledge base; a genuine off-topic
-  // question gets OUT_OF_SCOPE from the model → redirect.
   groundedResult = { outOfScope: true };
+  const session = fresh();
+  session.state = 'awaiting_interest'; // simulate
   const { reply, session: s } = await processMessage(session, 'what is the weather in lahore?');
   assert.match(reply, /website/);
   assert.equal(s.state, 'awaiting_interest'); // flow preserved, not pushed forward
@@ -252,7 +242,7 @@ test('job question mid-flow (awaiting_interest) is answered, not pushed to pitch
   setIntent('provide_info');
   groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
   const session = fresh();
-  await processMessage(session, 'tell me about video watch and earn'); // → awaiting_interest
+  session.state = 'awaiting_interest'; // simulate an interested candidate
   setIntent('greeting'); // simulate the classifier mislabeling a Hinglish question
   groundedResult = { text: 'We have 10 jobs: Video Watch and Earn, Assignment Writing, ...' };
   const { reply, session: s } = await processMessage(session, 'konsi jobs hain?');
@@ -299,26 +289,25 @@ test('language switches to Hinglish mid-conversation', async () => {
   assert.match(reply, /10 jobs|Video Watch and Earn/i);
 });
 
-test('English follow-up moves a Hinglish session back to English', async () => {
+test('English follow-up in a Hinglish session answers with the exact PDF intent script', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'haan, main apply karna chahata hoon'); // → hi
   assert.equal(session.lang, 'hi');
   setIntent('provide_info');
   groundedResult = { text: 'The salary is paid weekly in PKR.' };
-  const { session: s } = await processMessage(session, 'what is the salary?');
-  assert.equal(s.lang, 'en'); // strong English marker flips back
+  const { reply, session: s } = await processMessage(session, 'what is the salary?');
+  assert.equal(reply, INTENTS[3].reply); // EXACT INTENT_04 script (deterministic, lang-independent)
+  assert.equal(s.lang, 'hi'); // lang stays; the PDF script is fixed
 });
 
 test('explicit "i am interested" in awaiting_interest goes to pitch', async () => {
-  setIntent('provide_info');
-  groundedResult = { text: 'Video Watch and Earn lets you watch ads for rewards.' };
-  const session = fresh();
-  await processMessage(session, 'tell me about video watch and earn'); // → awaiting_interest
   setIntent('apply');
+  const session = fresh();
+  session.state = 'awaiting_interest'; // simulate an interested candidate
   const { reply, session: s } = await processMessage(session, 'i am interested');
   assert.equal(s.state, 'awaiting_apply_decision');
-  assert.match(reply, /WhatsApp/); // pitch shown
+  assert.ok(reply.startsWith(INTENTS[9].reply)); // INTENT_10 pitch shown
 });
 
 test('loose job name is answered from knowledge, not redirected', async () => {
@@ -328,35 +317,33 @@ test('loose job name is answered from knowledge, not redirected', async () => {
   setIntent('provide_info');
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'graphic design kaise hota hai?');
-  assert.match(reply, /Graphic Designer/); // matched canonical name
-  assert.match(reply, /Telegram account banana parega/); // INTENT_10 selection reply
+  assert.equal(reply, INTENTS[9].reply); // EXACT INTENT_10 script
   assert.doesNotMatch(reply, /can only|sirf hamari|out of scope/i); // no redirect
-  assert.equal(s.state, 'awaiting_interest');
+  assert.equal(s.state, 'awaiting_apply_decision');
   assert.equal(s.job, 'Graphic Designer'); // job captured in session
 });
 
 test('loose job name in awaiting_apply_decision is answered, not re-asked', async () => {
   setIntent('apply');
   const session = fresh();
-  await processMessage(session, 'i want to apply'); // → awaiting_apply_decision
+  session.state = 'awaiting_apply_decision'; // simulate
   setIntent('provide_info');
   const { reply, session: s } = await processMessage(session, 'data entry kya hai?');
-  assert.match(reply, /Data Entry/);
+  assert.equal(reply, INTENTS[9].reply); // EXACT INTENT_10 script
   assert.equal(s.state, 'awaiting_apply_decision'); // still awaiting decision
   assert.equal(s.job, 'Data Entry'); // job captured
 });
 
-test('job named during name collection captures the job and goes to pitch', async () => {
+test('job named during name collection captures the job, name re-asked', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'haan'); // → awaiting_name
   const { reply, session: s } = await processMessage(session, 'i want to apply for data entry');
-  assert.equal(s.state, 'awaiting_apply_decision'); // interest → pitch
+  assert.equal(s.state, 'awaiting_name'); // flow preserved — name still asked
   assert.equal(s.job, 'Data Entry'); // job captured
   assert.equal(s.name, null); // NOT stored as name
-  assert.match(reply, /Data Entry/);
-  assert.match(reply, /WhatsApp/); // pitch shown
+  assert.equal(reply, INTENTS[9].reply + '\n\n' + RULES_HI.askName); // EXACT INTENT_10 + Hinglish name re-ask
 });
 
 test('"which job am i applying for" during name collection answers, not stored as name', async () => {
@@ -471,9 +458,9 @@ test('RUTHLESS: "amazon fba" alone (out_of_scope classifier) is answered, not re
   groundedResult = { outOfScope: true }; // model would also say out of scope
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'amazon fba');
-  assert.match(reply, /Amazon FBA/); // deterministic matcher wins
+  assert.equal(reply, INTENTS[9].reply); // EXACT INTENT_10 script
   assert.doesNotMatch(reply, /can only|sirf hamari|out of scope/i);
-  assert.equal(s.state, 'awaiting_interest');
+  assert.equal(s.state, 'awaiting_apply_decision');
   assert.equal(s.job, 'Amazon FBA');
 });
 
@@ -511,10 +498,9 @@ test('RUTHLESS: misclassified knowledge questions still get an answer, not redir
   groundedResult = { text: 'We offer daily and weekly earning opportunities with secure, timely payouts in PKR.' };
   const session = fresh();
   const { reply } = await processMessage(session, 'how much can i earn?');
-  // Even with the classifier wrong, the knowledge-question matcher routes it
-  // to the grounded answer — never a redirect.
-  assert.doesNotMatch(reply, /can only|sirf hamari|website/i);
-  assert.match(reply, /earning|earn/i);
+  // Even with the classifier wrong, the deterministic PDF matcher routes it
+  // to the exact INTENT_04 script — never a redirect.
+  assert.equal(reply, INTENTS[3].reply);
 });
 
 test('RUTHLESS: "no" at interest prompt closes politely, not pitch', async () => {
@@ -571,7 +557,7 @@ test('FLOW: security concern while asked for name is reassured and name re-asked
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'yes'); // → awaiting_name
   const { reply, session: s } = await processMessage(session, 'mujhe security concerns hain');
-  assert.match(reply, /safe|mehfooz|secure/i); // reassured
+  assert.ok(reply.startsWith(INTENTS[2].reply)); // INTENT_03 trust script
   assert.match(reply, /name|naam/i); // name re-asked
   assert.equal(s.state, 'awaiting_name'); // flow preserved
   assert.equal(s.name, null); // not stored as a name
@@ -584,7 +570,7 @@ test('FLOW: security concern while asked for phone is reassured and phone re-ask
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza'); // → awaiting_phone
   const { reply, session: s } = await processMessage(session, 'is my data safe with you?');
-  assert.match(reply, /safe|mehfooz|secure/i);
+  assert.ok(reply.startsWith(INTENTS[2].reply)); // INTENT_03 trust script
   assert.match(reply, /number|phone/i); // phone re-asked
   assert.equal(s.state, 'awaiting_phone');
 });
@@ -598,8 +584,7 @@ test('FLOW: job details asked while collecting phone are answered, phone re-aske
   setIntent('provide_info');
   groundedResult = { text: 'Data Entry: Work from home doing data entry.' };
   const { reply, session: s } = await processMessage(session, 'data entry kya hai?');
-  assert.match(reply, /Data Entry/); // answered
-  assert.match(reply, /number|phone/i); // phone re-asked
+  assert.equal(reply, INTENTS[9].reply + '\n\n' + RULES.askPhone); // EXACT INTENT_10 + phone re-ask
   assert.equal(s.state, 'awaiting_phone'); // flow preserved
   assert.equal(s.phone, null); // not polluted
 });
@@ -628,9 +613,9 @@ test('FLOW: job question at confirm is answered and confirm re-asked', async () 
   setIntent('provide_info');
   groundedResult = { text: 'Amazon FBA: Work from home with Amazon FBA.' };
   const { reply, session: s } = await processMessage(session, 'amazon fba kya hai?');
-  assert.match(reply, /Amazon FBA/); // answered
-  assert.match(reply, /confirm|submit|Haan|Yes/i); // confirm re-asked
+  assert.equal(reply, INTENTS[9].reply + '\n\n' + RULES.confirmPrompt); // EXACT INTENT_10 + confirm re-ask
   assert.equal(s.state, 'awaiting_confirm'); // flow preserved
+  assert.equal(s.job, 'Amazon FBA');
 });
 
 test('FLOW: full application survives a barrage of side questions', async () => {
@@ -694,14 +679,12 @@ test('FLOW: "no problem" mid-field does NOT close the application', async () => 
 
 // ---- NEW SCENARIOS: full job details, job lists, interest handling, field guards ----
 
-test('JOB DETAILS: asking about a job gives the intent reply + job list, not a redirect', async () => {
+test('JOB DETAILS: asking about a job gives the EXACT INTENT_10 script, not a redirect', async () => {
   setIntent('provide_info');
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'what is data entry?');
-  assert.match(reply, /Data Entry/); // job named in the reply
-  assert.match(reply, /Telegram account banana parega/); // INTENT_10 selection reply
-  assert.match(reply, /Video Watch and Earn/); // job list follows
-  assert.equal(s.state, 'awaiting_interest');
+  assert.equal(reply, INTENTS[9].reply); // EXACT INTENT_10 script, nothing extra
+  assert.equal(s.state, 'awaiting_apply_decision');
   assert.equal(s.job, 'Data Entry');
 });
 
@@ -782,8 +765,7 @@ test('INTEREST: "i am interested in data entry" names the job and pitches', asyn
   const { reply, session: s } = await processMessage(session, 'i am interested in data entry');
   assert.equal(s.job, 'Data Entry');
   assert.equal(s.state, 'awaiting_apply_decision');
-  assert.match(reply, /Data Entry/); // job ack in the pitch
-  assert.match(reply, /WhatsApp/);
+  assert.equal(reply, INTENTS[9].reply); // EXACT INTENT_10 script
 });
 
 test('INTEREST: "interested" while asked for name is never stored as a name', async () => {
@@ -810,17 +792,17 @@ test('INTEREST: "mein interested hu" mid-phone answers with pitch, phone not sto
   assert.match(reply, /WhatsApp/);
 });
 
-test('INTEREST: "i want to apply" while asked for phone goes to pitch, not a name/phone', async () => {
+test('INTEREST: "i want to apply" while asked for phone captures job, phone re-asked', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'haan');
   await processMessage(session, 'Ali Raza'); // → awaiting_phone
   const { reply, session: s } = await processMessage(session, 'i want to apply for data entry');
-  assert.equal(s.state, 'awaiting_apply_decision');
+  assert.equal(s.state, 'awaiting_phone'); // flow preserved
   assert.equal(s.job, 'Data Entry');
   assert.equal(s.phone, null);
-  assert.match(reply, /Data Entry/);
+  assert.equal(reply, INTENTS[9].reply + '\n\n' + RULES_HI.askPhone); // EXACT INTENT_10 + Hinglish phone re-ask
 });
 
 test('INTEREST: "main apply karna chahta hoon" at confirm re-asks confirm, no submission', async () => {
@@ -838,14 +820,14 @@ test('INTEREST: "main apply karna chahta hoon" at confirm re-asks confirm, no su
   assert.match(reply, /WhatsApp/);
 });
 
-test('LANG: Hinglish apply → Hinglish pitch with setup guide', async () => {
+test('LANG: Hinglish apply → Hinglish pitch (INTENT_10 + apply ask)', async () => {
   setIntent('apply');
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'haan, main apply karna chahata hoon');
   assert.equal(s.lang, 'hi');
   assert.equal(s.state, 'awaiting_apply_decision');
-  assert.match(reply, /WhatsApp/); // INTENT_10 pitch
-  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=ch\.protonvpn\.android/); // INTENT_11 guide
+  assert.ok(reply.startsWith(INTENTS[9].reply)); // INTENT_10 pitch
+  assert.match(reply, /apply karne mein interested/i); // Hinglish apply ask
 });
 
 test('LANG: English interest while collecting name keeps the bot in English', async () => {
@@ -918,7 +900,7 @@ test('FIELD: irrelevant question mid-phone re-asks phone, not stored', async () 
   assert.equal(s.phone, null);
 });
 
-test('FIELD: job changed at confirm captures the new job and goes to pitch', async () => {
+test('FIELD: job changed at confirm captures the new job, confirm re-asked', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'i want to apply');
@@ -929,10 +911,9 @@ test('FIELD: job changed at confirm captures the new job and goes to pitch', asy
   const before = submissions.length;
   const { reply, session: s } = await processMessage(session, 'video editing job karna hai');
   assert.equal(s.job, 'Video Editing Job'); // job captured
-  assert.equal(s.state, 'awaiting_apply_decision'); // interest → pitch
+  assert.equal(s.state, 'awaiting_confirm'); // flow preserved — confirm re-asked
   assert.equal(submissions.length, before); // not submitted by an interest statement
-  assert.match(reply, /Video Editing Job/); // pitch acks the job
-  assert.match(reply, /WhatsApp/);
+  assert.equal(reply, INTENTS[9].reply + '\n\n' + RULES_HI.confirmPrompt); // EXACT INTENT_10 + Hinglish confirm re-ask
 });
 
 test('FIELD: "which job am i applying for" mid-phone answers and re-asks phone', async () => {

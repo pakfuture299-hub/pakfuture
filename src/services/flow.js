@@ -25,6 +25,7 @@
 
 const { classifyIntent, askGrounded } = require('./openai');
 const { submitCandidate } = require('./submission');
+const { createIntentMatcher } = require('./intents');
 const {
   RULES,
   RULES_HI,
@@ -43,6 +44,46 @@ const { JOBS } = require('../knowledge/base');
 const logger = require('../utils/logger');
 
 const EMPTY_ANSWER_SENTINEL = 'EMPTY_ANSWER';
+
+/** Deterministic matcher over the PDF's 12 intents (longest trigger wins). */
+const intentMatcher = createIntentMatcher(INTENTS);
+
+/**
+ * Resolve a message to its PDF intent reply, if any. Returns the EXACT PDF
+ * script (no appended prompts). Checks intent triggers BEFORE any
+ * interest/apply heuristic so "apply kaise karna hai" → INTENT_05, never a
+ * job-selection pitch.
+ */
+function matchPdfIntent(message) {
+  const m = intentMatcher.match(message);
+  return m ? m.intent.reply : null;
+}
+
+/**
+ * The PDF intents that are pure knowledge answers — matched deterministically
+ * and answered with the EXACT PDF script, with no appended prompts. These are
+ * safe to answer in any state. The flow intents (01 welcome, 05 apply,
+ * 10 job-selection, 12 confirmation) are handled by the state machine so the
+ * guided flow still works.
+ */
+const KNOWLEDGE_INTENT_IDS = new Set([
+  'INTENT_02_AVAILABLE_JOBS',
+  'INTENT_03_TRUST_LEGITIMACY',
+  'INTENT_04_PAYMENT_GUARANTEE',
+  'INTENT_06_JOB_TIMINGS',
+  'INTENT_07_OFFICE_LOCATION',
+  'INTENT_08_REQUIREMENTS',
+  'INTENT_09_REGISTRATION_FEE',
+  'INTENT_11_TELEGRAM_GUIDANCE',
+]);
+
+/**
+ * Resolve a message to its PDF intent object (not just the reply), so the
+ * caller can inspect which intent matched.
+ */
+function matchPdfIntentObject(message) {
+  return intentMatcher.match(message);
+}
 
 /** Roman Urdu / Hinglish marker words (lowercase, exact or word-boundary). */
 const HI_MARKERS = [
@@ -348,35 +389,22 @@ function telegramHelpReply(session) {
 }
 
 /**
- * Short greeting — just a friendly intro + "how can I help?", no pitch.
- * The pitch comes later, only once the candidate shows interest.
+ * Greeting reply — the EXACT INTENT_01 PDF script (welcome message). No extra
+ * emoji, no extra prompts: only what the PDF specifies.
  */
 function shortGreetingReply(session) {
-  return rulesFor(session).shortGreeting;
+  return INTENTS[0].reply;
 }
 
 /**
- * The interest → pitch step: explains why Telegram, provides the setup links
- * (VPN / app / video), then asks whether they want to apply. When the
- * candidate named a specific job, the pitch opens with an ack of that job so
- * the choice is never lost.
+ * The interest → pitch step: INTENT_10's exact PDF script (why Telegram, the
+ * WhatsApp comparison, account-setup question) followed by the apply
+ * decision question. No extra ack, no extra prompts — only the PDF script +
+ * the flow's apply question.
  */
 function pitchAndAskReply(session) {
   const R = rulesFor(session);
-  // INTENT_10 IS the pitch: it explains why Telegram, the WhatsApp comparison,
-  // and asks whether the account is already set up. Then ask to apply.
-  const pitch = INTENTS[9].reply;
-  const links = rulesFor(session).noTelegramGuide || telegramHelpReply(session);
-  const parts = [];
-  if (session.job) {
-    parts.push(
-      session.lang === 'hi'
-        ? `Theek hai — ${session.job} ke liye apply! 👍`
-        : `Got it — applying for ${session.job}! 👍`
-    );
-  }
-  parts.push(R.interestPrompt, pitch, links, R.applyAsk);
-  return parts.join('\n\n');
+  return INTENTS[9].reply + '\n\n' + R.applyAsk;
 }
 
 /** Polite close when the candidate is not interested in applying. */
@@ -410,7 +438,8 @@ function extractFieldAnswer(message, field) {
 async function sideQuestionInField(session, message) {
   if (isInterested(message)) return null; // "i'm interested" mid-field → handled by state
   if (asksSecurity(message)) {
-    return rulesFor(session).securityReassurance + '\n\n' + fieldReask(session);
+    // PDF-exact trust answer (INTENT_03), then re-ask the field.
+    return INTENTS[2].reply + '\n\n' + fieldReask(session);
   }
   if (asksTelegramHelp(message)) {
     return telegramHelpReply(session) + '\n\n' + fieldReask(session);
@@ -429,31 +458,31 @@ async function sideQuestionInField(session, message) {
 
 /**
  * Build a grounded answer about a job (or general knowledge) and attach the
- * matched job to the session. Returns the reply text (without the interest
- * prompt) or null when the answer is out of scope.
+ * matched job to the session. Answers ONLY from the PDF intents — the exact
+ * script, never model-generated text. Returns the reply string, an
+ * { applyFlow } / { telegramHelp } sentinel, or null when out of scope.
  */
 async function answerQuestion(session, message) {
-  // Deterministic job match first: a candidate naming a real job (possibly
-  // by a loose name) always gets the job's details, never a redirect.
-  const matched = matchJob(message);
-  if (matched) {
-    session.job = matched.name;
-    return jobSummary(matched);
+  // Deterministic PDF intent match first — the PDF's trigger keywords are the
+  // only source of answers. Returns the EXACT script.
+  const pdfMatch = matchPdfIntentObject(message);
+  if (pdfMatch) {
+    // Track a job named in the message when it's a job-selection intent.
+    if (pdfMatch.intent.id === 'INTENT_10_JOB_SELECTION') {
+      const m = matchJob(message);
+      if (m) session.job = m.name;
+      return pdfMatch.intent.reply;
+    }
+    if (pdfMatch.intent.id === 'INTENT_05_DIRECT_APPLY') return { applyFlow: true };
+    if (pdfMatch.intent.id === 'INTENT_11_TELEGRAM_GUIDANCE') return { telegramHelp: true };
+    return pdfMatch.intent.reply;
   }
-  // Deterministic "which jobs are available?" — never rely on the model.
+  // Deterministic "which jobs are available?" (INTENT_02) — never rely on the model.
   if (isAskingJobList(message)) {
     return jobsListReply(session.lang);
   }
-  const answer = await askGrounded(message, session.lang);
-  if (answer.outOfScope) return null;
-  if (answer.applyFlow) return { applyFlow: true };
-  if (answer.telegramHelp) return { telegramHelp: true };
-  // Track the job when the model's answer names one of our jobs.
-  if (!session.job) {
-    const m = matchJob(answer.text);
-    if (m) session.job = m.name;
-  }
-  return answer.text;
+  // Nothing in the PDF matches → out of scope. Never improvise.
+  return null;
 }
 
 /**
@@ -476,6 +505,60 @@ async function defensiveAnswer(session, message) {
 async function processMessage(session, message) {
   const text = normalizeText(message);
   if (!text) return { reply: shortGreetingReply(session), session };
+
+  // Deterministic PDF intent match — runs FIRST so every trigger keyword in
+  // the PDF gets its EXACT answer, never a heuristic misclassification.
+  // Pure knowledge intents (02,03,04,06,07,08,09,11) are answered verbatim in
+  // any state; in a field-collection state the field re-ask is appended so
+  // the application is never lost.
+  const pdfMatch = matchPdfIntentObject(text);
+  if (pdfMatch && KNOWLEDGE_INTENT_IDS.has(pdfMatch.intent.id)) {
+    const reask = fieldReask(session);
+    return {
+      reply: reask ? pdfMatch.intent.reply + '\n\n' + reask : pdfMatch.intent.reply,
+      session,
+    };
+  }
+  // INTENT_05 (Direct Job Application) — "apply kaise karna hai", "job
+  // chahiye", "hiring process" etc. Must reply with the EXACT PDF script, not
+  // the INTENT_10 selection pitch. The candidate is then asked to pick a job.
+  // In a field-collection state, answer + re-ask the field.
+  if (pdfMatch && pdfMatch.intent.id === 'INTENT_05_DIRECT_APPLY') {
+    const reask = fieldReask(session);
+    if (reask) {
+      return { reply: pdfMatch.intent.reply + '\n\n' + reask, session };
+    }
+    session.state = 'awaiting_interest';
+    return { reply: pdfMatch.intent.reply, session };
+  }
+  // INTENT_12 (Telegram Setup Confirmation) — "telegram account done" etc.
+  // The candidate finished setup: hand over the exact PDF script (direct link).
+  if (pdfMatch && pdfMatch.intent.id === 'INTENT_12_TELEGRAM_CONFIRMATION') {
+    return { reply: pdfMatch.intent.reply, session };
+  }
+  // SECURITY / TRUST questions take priority over a job-name match: "is data
+  // entry safe?", "data kahan jayegi", "trust kaise karein". Answered with the
+  // PDF's INTENT_03 trust script; the field re-ask keeps the application alive.
+  if (asksSecurity(text)) {
+    const reask = fieldReask(session);
+    return { reply: reask ? INTENTS[2].reply + '\n\n' + reask : INTENTS[2].reply, session };
+  }
+  // INTENT_10 (Job Selection & Telegram Transition) — the candidate picks a
+  // job ("data entry", "graphic designer", "yeh job chahiye", "is mein
+  // interested hoon"). Reply with the EXACT PDF script (which explains the
+  // Telegram transition), capture the chosen job, and move the flow to the
+  // apply decision. In a field-collection state, answer + re-ask the field so
+  // the application is never lost.
+  if (pdfMatch && pdfMatch.intent.id === 'INTENT_10_JOB_SELECTION') {
+    const matched = matchJob(text);
+    if (matched) session.job = matched.name;
+    const reask = fieldReask(session);
+    if (reask) {
+      return { reply: pdfMatch.intent.reply + '\n\n' + reask, session };
+    }
+    session.state = 'awaiting_apply_decision';
+    return { reply: pdfMatch.intent.reply, session };
+  }
 
   // Cheap offline guardrail first (no AI call for obvious off-topic).
   if (isRedirectTrigger(text)) {
@@ -511,16 +594,17 @@ async function processMessage(session, message) {
   // Universal "which jobs are available?" — the list is answered
   // deterministically from the knowledge base at ANY point in the flow, and
   // the current field (if any) is re-asked so the application is never lost.
+  // The reply is INTENT_02's EXACT PDF script — nothing appended outside a
+  // field-collection state.
   if (isAskingJobList(text)) {
-    const R = rulesFor(session);
     if (['awaiting_name', 'awaiting_phone', 'awaiting_telegram', 'awaiting_confirm'].includes(session.state)) {
       return { reply: jobsListReply(session.lang) + '\n\n' + fieldReask(session), session };
     }
     if (session.state === 'awaiting_apply_decision') {
-      return { reply: jobsListReply(session.lang) + '\n\n' + R.applyAsk, session };
+      return { reply: jobsListReply(session.lang), session };
     }
     session.state = 'awaiting_interest';
-    return { reply: jobsListReply(session.lang) + '\n\n' + R.interestPrompt, session };
+    return { reply: jobsListReply(session.lang), session };
   }
 
   // Universal "i am interested" — an explicit interest statement at ANY point
@@ -543,12 +627,11 @@ async function processMessage(session, message) {
   }
 
   // Universal security-reassurance fallback — a candidate who raises a
-  // privacy/trust concern at ANY point gets a reassuring answer. In a
-  // field-collection state we append the field re-ask so the flow continues.
+  // privacy/trust concern at ANY point gets the PDF's INTENT_03 trust answer.
+  // In a field-collection state we append the field re-ask so the flow continues.
   if (asksSecurity(text)) {
-    const R = rulesFor(session);
     const reask = fieldReask(session);
-    return { reply: reask ? R.securityReassurance + '\n\n' + reask : R.securityReassurance, session };
+    return { reply: reask ? INTENTS[2].reply + '\n\n' + reask : INTENTS[2].reply, session };
   }
 
   // In field-collection states, a back-out ("no thanks", "no, cancel",
@@ -597,8 +680,8 @@ async function processMessage(session, message) {
           } else if (answer.telegramHelp) {
             reply = telegramHelpReply(session);
           } else {
-            reply = answer + '\n\n' + rulesFor(session).interestPrompt;
-            session.state = 'awaiting_interest';
+            // EXACT PDF script — nothing appended.
+            reply = answer;
           }
         } else {
           // Just a friendly intro — no pitch yet.
@@ -618,9 +701,8 @@ async function processMessage(session, message) {
         } else if (answer.telegramHelp) {
           reply = telegramHelpReply(session);
         } else {
-          // Real answer about a job — follow with a gentle interest prompt.
-          reply = answer + '\n\n' + rulesFor(session).interestPrompt;
-          session.state = 'awaiting_interest';
+          // EXACT PDF script — nothing appended.
+          reply = answer;
         }
       } else {
         // Classifier said out_of_scope, but if the message names a real job
@@ -635,8 +717,8 @@ async function processMessage(session, message) {
         } else if (answer.telegramHelp) {
           reply = telegramHelpReply(session);
         } else {
-          reply = answer + '\n\n' + rulesFor(session).interestPrompt;
-          session.state = 'awaiting_interest';
+          // EXACT PDF script — nothing appended.
+          reply = answer;
         }
       }
       return { reply, session };
@@ -654,7 +736,7 @@ async function processMessage(session, message) {
           return { reply: pitchAndAskReply(session), session };
         }
         if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
-        return { reply: answer + '\n\n' + rulesFor(session).interestPrompt, session };
+        return { reply: answer, session };
       }
       // "no" to the interest prompt → polite close, not the pitch.
       if (isNo(text)) {
@@ -677,8 +759,8 @@ async function processMessage(session, message) {
           return { reply: pitchAndAskReply(session), session };
         }
         if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
-        // Still exploring — answer and keep the interest prompt.
-        return { reply: answer + '\n\n' + rulesFor(session).interestPrompt, session };
+        // EXACT PDF script — nothing appended.
+        return { reply: answer, session };
       }
       // An explicit "yes / interested" or plain confirmation → pitch + apply ask.
       if (isYes(text) || /interest|interested|chahiye|chahie|karna chahta|karna chahti/i.test(text)) {
@@ -715,7 +797,7 @@ async function processMessage(session, message) {
         if (answer === null) return { reply: rulesFor(session).outOfScopeRedirect, session };
         if (answer.applyFlow) return { reply: pitchAndAskReply(session), session };
         if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
-        return { reply: answer + '\n\n' + rulesFor(session).applyAsk, session };
+        return { reply: answer, session };
       }
       // A follow-up question while waiting for yes/no ("konsi jobs hain?")
       // should be answered, not absorbed into the pitch or repeated ask.
@@ -724,8 +806,8 @@ async function processMessage(session, message) {
         if (answer === null) return { reply: rulesFor(session).outOfScopeRedirect, session };
         if (answer.applyFlow) return { reply: pitchAndAskReply(session), session };
         if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
-        // Answer the question, then still ask whether they want to apply.
-        return { reply: answer + '\n\n' + rulesFor(session).applyAsk, session };
+        // EXACT PDF script — nothing appended.
+        return { reply: answer, session };
       }
       // A candidate may skip the "yes" and go straight to their name — accept
       // a valid-looking name and continue the flow.

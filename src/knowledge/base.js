@@ -58,7 +58,12 @@ const INTENTS = [
     name: 'Trust & Legitimacy Queries',
     triggers: [
       'real hai ya fake', 'scam toh nahi', 'trust kaise karein', 'proof hai', 'legit hai',
-      'scam', 'fake job',
+      'scam', 'fake job', 'is this real', 'is this legit', 'is it safe', 'is this safe',
+      'is my data safe', 'is this a scam', 'this is fake', 'trust you', 'safe hai',
+      'secure hai', 'trusted hai', 'reliable hai', 'is this job legit', 'is this job real',
+      'is this job a scam', 'is this platform real', 'is this platform legit',
+      'is this platform safe', 'is this trusted', 'is this genuine', 'is this real job',
+      'is this a fake job', 'is this genuine', '100 percent trusted', 'fully trusted',
     ],
     reply:
       'Job Portal Global ek fully verified aur professional platform hai. 🛡️ Hum transparency par yaqeen rakhte hain aur kisi kisam ke fraudulent claims nahi karte. System aur payment process ki mukammal tafseelat hamari official team Telegram par transparent tarike se brief karti hai. 📑',
@@ -68,7 +73,9 @@ const INTENTS = [
     name: 'Payment & Salary Guarantee',
     triggers: [
       'salary kitni milegi', 'payout kaise hoga', 'easypaisa', 'jazzcash', 'bank transfer',
-      'daily payment', 'weekly payment', 'income',
+      'daily payment', 'weekly payment', 'income', 'how much can i earn', 'how much do i earn',
+      'how much will i earn', 'salary', 'payout', 'payment method', 'how do i get paid',
+      'when do i get paid', 'earn money', 'kitni salary', 'kitna income',
     ],
     reply:
       'Hamari tamam payments verified local payment gateways (Easypaisa 💳, JazzCash 📱, aur Direct Bank Transfer 🏦) ke zariye ki jaati hain. Daily aur weekly payout options available hain. Exact salary packages aap ki selected job role par depend karte hain jo team Telegram par finalize karti hai. 💵',
@@ -77,8 +84,10 @@ const INTENTS = [
     id: 'INTENT_05_DIRECT_APPLY',
     name: 'Direct Job Application',
     triggers: [
-      'job chahiye', 'apply kaise karein', 'mujhe kaam karna hai', 'start kaise karein',
-      'hiring process', 'want job',
+      'job chahiye', 'apply kaise karein', 'apply kaise karna hai', 'apply kaise karni hai',
+      'mujhe kaam karna hai', 'mujhe kaam karna', 'start kaise karein', 'start kaise karna hai',
+      'hiring process', 'want job', 'kaam karna hai', 'job apply karna', 'apply karne ka tareeqa',
+      'apply karne ka tarika', 'how to apply',
     ],
     reply:
       'Job Portal Global par hiring process bohot aasan hai. 🎯 Aap ko bas apni pasand ki job select karni hai aur Telegram ke zariye hamari recruitment team se connect hona hai jahan aap ko onboarding guidelines di jayengi. 📲',
@@ -88,7 +97,9 @@ const INTENTS = [
     name: 'Job Timings & Working Hours',
     triggers: [
       'job timing kia hain', 'timings kia hai', 'kitne ghante kaam hai', 'time kia hai',
-      'working hours', 'part time hai ya full time', 'kaam ka time',
+      'working hours', 'part time hai ya full time', 'kaam ka time', 'how many hours',
+      'what are the timings', 'what are the hours', 'how many hours a day', 'hours per day',
+      'part time or full time', 'job timings', 'kaam ke ghante',
     ],
     reply:
       'Hamare portal par flexible timings hain! ⏰ Aap apni marzi aur suhoolat ke mutabiq part-time ya full-time kaam kar sakte hain. Daily kisi bhi waqt 2 se 4 ghante de kar aap behtareen earning kar sakte hain. ⏱️',
@@ -98,7 +109,8 @@ const INTENTS = [
     name: 'Office Location & Physical Address',
     triggers: [
       'apka office kaha hai', 'office location', 'pata kia hai', 'kahan office hai',
-      'city kon sa hai', 'address kia hai', 'physical office',
+      'city kon sa hai', 'address kia hai', 'physical office', 'where is your office',
+      'where is the office', 'office address', 'your location', 'office kahan hai',
     ],
     reply:
       'Job Portal Global ek centralized remote digital platform hai. 🌐 Aap ko kisi physical office visiting ki zaroorat nahi hai — aap ghar baithe mobile ya laptop se fully remote work kar sakte hain. 🏡',
@@ -108,7 +120,9 @@ const INTENTS = [
     name: 'Requirements & Qualifications',
     triggers: [
       'qualification kia chahiye', 'parhai kitni chahiye', 'age limit', 'experience chahiye',
-      'kaun kar sakta hai', 'study requirement',
+      'kaun kar sakta hai', 'study requirement', 'do i need experience', 'qualification needed',
+      'qualification required', 'what qualifications', 'education required', 'any qualification',
+      'need experience', 'experience required', 'who can apply', 'who can do this',
     ],
     reply:
       'Is kaam ke liye kisi high qualification ya pehle se tajurbe (experience) ki zaroorat nahi hai. 🎓 Agar aap ke paas smartphone aur basic internet connection hai, toh aap yeh kaam asani se kar sakte hain. 📲',
@@ -118,7 +132,9 @@ const INTENTS = [
     name: 'Registration Fee & Investment',
     triggers: [
       'fees hai', 'investment hai', 'paisa dena parega', 'registration charge', 'free hai',
-      'free job',
+      'free job', 'is there a fee', 'any fee', 'registration fee', 'do i have to pay',
+      'do i need to pay', 'is it free', 'kya fees hai', 'kya paisa dena', 'any investment',
+      'no fees',
     ],
     reply:
       'Job Portal Global par application process aur registration policy ki mukammal tafseelat hamari recruitment team faraham karti hai. Hum ek transparent system par kaam karte hain. 📋',
@@ -129,6 +145,15 @@ const INTENTS = [
     triggers: [
       'data entry', 'content writing', 'video watch', 'graphic designer', 'amazon va',
       'assignment writing', 'yeh job chahiye', 'is mein interested hoon', 'mai yeh kaam karunga',
+      // Loose job-name variants — the same selection intent when the candidate
+      // names a job in natural language.
+      'graphic design', 'video editing', 'video editor', 'digital marketing', 'marketing',
+      'travel and booking', 'travel booking', 'virtual assistant', 'amazon virtual',
+      'assignment', 'content writ', 'typing', 'data typing', 'amazon fba', 'watch and earn',
+      'video watch and earn', 'kaam karunga', 'job karna hai', 'yeh kaam karna hai',
+      'apply for data entry', 'apply for graphic', 'apply for video', 'apply for assignment',
+      'apply for content', 'apply for travel', 'apply for marketing', 'apply for amazon',
+      'apply for virtual assistant', 'apply for typing',
     ],
     reply:
       'Zabardast! Aap ka selection bohot behtareen hai. 🎉\n' +
