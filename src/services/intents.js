@@ -34,8 +34,52 @@ function normalizeKeywords(input) {
 }
 
 /**
- * Escape a string for use inside a RegExp.
+ * Whole-word keyword layer: a single distinctive keyword used anywhere in a
+ * sentence ("fees?", "salary kya hai", "timing batao") resolves to its
+ * intent even when it is not inside one of the PDF's exact trigger phrases.
+ *
+ * This runs ONLY after the phrase layer found no match, so existing exact
+ * trigger behaviour is completely unchanged. Keywords are chosen to be
+ * unambiguous whole words — generic words like "job"/"kaam" are deliberately
+ * excluded to avoid false positives.
  */
+const KEYWORD_INTENTS = [
+  { keywords: ['fees', 'fee', 'registration charge'], intentId: 'INTENT_09_REGISTRATION_FEE' },
+  { keywords: ['salary', 'payout', 'payment', 'easypaisa', 'jazzcash', 'income', 'earn'], intentId: 'INTENT_04_PAYMENT_GUARANTEE' },
+  { keywords: ['timing', 'timings', 'hours', 'ghante'], intentId: 'INTENT_06_JOB_TIMINGS' },
+  { keywords: ['office', 'location', 'address'], intentId: 'INTENT_07_OFFICE_LOCATION' },
+  { keywords: ['qualification', 'qualifications', 'experience', 'age limit', 'parhai', 'padhai'], intentId: 'INTENT_08_REQUIREMENTS' },
+  { keywords: ['scam', 'trust', 'legit', 'fake', 'safe', 'secure', 'trusted'], intentId: 'INTENT_03_TRUST_LEGITIMACY' },
+  { keywords: ['vacancies', 'jobs list', 'available jobs'], intentId: 'INTENT_02_AVAILABLE_JOBS' },
+  // NOTE: flow intents (apply / job-selection / telegram confirmation) are
+  // deliberately NOT in the keyword layer — the guided apply flow handles
+  // those, and a bare keyword must never hijack it.
+];
+
+/** True when the message contains the keyword as a whole word. */
+function hasWholeWord(message, keyword) {
+  return message.search(new RegExp(`(^|[^a-z0-9])${escapeRegExp(keyword)}([^a-z0-9]|$)`)) !== -1;
+}
+
+/** Build a lookup: keyword -> intent object. */
+function buildKeywordLookup(intents) {
+  const byId = new Map(intents.map((i) => [i.id, i]));
+  const kw = [];
+  for (const { keywords, intentId } of KEYWORD_INTENTS) {
+    const intent = byId.get(intentId);
+    if (!intent) continue;
+    for (const k of keywords) {
+      const key = normalizeKeywords(k);
+      if (!key) continue;
+      kw.push({ key, intent });
+    }
+  }
+  // Longest keyword first (e.g. "registration charge" before "fees").
+  kw.sort((a, b) => b.key.length - a.key.length);
+  return kw;
+}
+
+/** Escape a string for use inside a RegExp. */
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -75,17 +119,28 @@ function buildMatcher(intents) {
 /** Build a matcher from the PDF intents. */
 function createIntentMatcher(intents) {
   const triggers = buildMatcher(intents);
+  const keywordLookup = buildKeywordLookup(intents);
   return {
     /**
-     * Match a message to an intent by its trigger keywords.
+     * Match a message to an intent. Phrase triggers are tried first (longest
+     * match wins, unchanged behaviour); if none match, whole-word keywords
+     * are tried so a single trigger word used loosely in a sentence still
+     * resolves to its intent.
      * @returns {{intent: object, trigger: string}|null} the matched intent
      *   (with its exact reply) or null when nothing matches.
      */
     match(message) {
       const t = normalizeKeywords(message);
       if (!t) return null;
+      // Phrase layer (exact trigger phrases, word-boundary).
       for (const { key, intent } of triggers) {
         if (triggerMatches(t, key)) {
+          return { intent, trigger: key };
+        }
+      }
+      // Keyword layer (whole-word single keywords used loosely).
+      for (const { key, intent } of keywordLookup) {
+        if (hasWholeWord(t, key)) {
           return { intent, trigger: key };
         }
       }
@@ -94,4 +149,4 @@ function createIntentMatcher(intents) {
   };
 }
 
-module.exports = { createIntentMatcher, normalizeKeywords, triggerMatches };
+module.exports = { createIntentMatcher, normalizeKeywords, triggerMatches, hasWholeWord, KEYWORD_INTENTS };

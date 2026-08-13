@@ -15,16 +15,17 @@ Scope: `Job_Portal_Bot_System_Architecture.pdf` is the **only** knowledge base. 
 | 6 | `hi` / `hello` returned the redirect | Same as #1 | Fixed with #1 | ✅ |
 | 7 | Stuck `done` state after submission | The deterministic intent handlers ran before the done-state reset, so a post-submission greeting stayed in `done` | `done` state resets to `idle` at the very top of `processMessage`, before intent dispatch | ✅ |
 | 8 | Tests passed locally but production failed | Tests stubbed the AI as "greeting" (too lenient), hiding the failure path | All intent/scenario tests now stub the AI as the **worst case** (`out_of_scope`) so the deterministic matcher is proven correct even when OpenAI fails | ✅ |
+| 9 | `fees?` (or any single trigger word used loosely in a sentence) returned the redirect | Only exact trigger phrases matched; a bare keyword like `fees` in a sentence ("fees?", "koi fees lagti hai?") didn't hit any phrase trigger | Added a **keyword layer** to the matcher: distinctive whole-word keywords (`fees`, `salary`, `timing`, `office`, `qualification`, `scam`, etc.) resolve to their intent even when used loosely in a sentence. Runs only after the phrase layer (existing behaviour unchanged), and deliberately excludes flow intents + ambiguous words (`pata` — "don't know" — must not trigger office-location) | ✅ |
 
 ## What was tested
 
 All tests run with the AI stubbed to the worst case (returns `out_of_scope` — exactly what happens when OpenAI misclassifies or is down). The bot must answer correctly regardless.
 
 - **`tests/intents.test.js`** (7 tests) — every trigger keyword of every intent → exact PDF script; sentence variations; word-boundary no-false-positive checks; user-reported regression cases.
-- **`tests/scenarios.test.js`** (6 tests) — full PDF scenario sweep (all 12 intents × every trigger), mid-field side questions (flow never lost), full guided flow with mid-flow safety question → Google Sheet contract, all 10 jobs resolve + capture, done-state reset, out-of-PDF redirect.
+- **`tests/scenarios.test.js`** (8 tests) — full PDF scenario sweep (all 12 intents × every trigger), mid-field side questions (flow never lost), full guided flow with mid-flow safety question → Google Sheet contract, all 10 jobs resolve + capture, done-state reset, out-of-PDF redirect, **keyword-layer loose-trigger cases + ambiguous-word no-false-positive cases**.
 - **`tests/flow.test.js`** (75 tests) — the guided apply state machine.
 - **`tests/app.test.js` / `store.test.js` / `validation.test.js`** — HTTP, store, validation.
-- **Total: 109 tests, 0 failures.**
+- **Total: 111 tests, 0 failures.**
 
 ## What the chatbot returns (verified output)
 
@@ -39,6 +40,7 @@ All tests run with the AI stubbed to the worst case (returns `out_of_scope` — 
 | `apka office kaha hai` / `where is your office` | "Job Portal Global ek centralized remote digital platform hai. 🌐..." (INTENT_07) |
 | `qualification chahiye` / `do i need experience` | "Is kaam ke liye kisi high qualification... nahi hai. 🎓..." (INTENT_08) |
 | `fees hai` / `is there a fee` | "Job Portal Global par application process aur registration policy..." (INTENT_09) |
+| `fees?` / `koi fees lagti hai?` | Same INTENT_09 fees answer (loose keyword in a sentence) |
 | `data entry` / `graphic design` / `yeh job chahiye` | "Zabardast! Aap ka selection bohot behtareen hai. 🎉..." (INTENT_10) |
 | `telegram nahi pata` / `guide karo` | "No problem at all! Main abhi aap ko setup mein complete guidance..." (INTENT_11) |
 | `telegram account done` / `account setup kar liya hai` | "Zabardast! Welldone. 👏✨... 👉 https://t.me/+923244362726" (INTENT_12) |

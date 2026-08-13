@@ -169,3 +169,45 @@ test('SCENARIO: out-of-PDF messages redirect, never improvise', async () => {
   const r = await processMessage(s, 'what is the weather in lahore?');
   assert.match(r.reply, /website|sirf hamari/);
 });
+
+test('KEYWORD LAYER: a single trigger word used loosely in a sentence resolves to its intent', async () => {
+  const cases = [
+    { input: 'fees?', intentId: 'INTENT_09_REGISTRATION_FEE' },
+    { input: 'koi fees lagti hai?', intentId: 'INTENT_09_REGISTRATION_FEE' },
+    { input: 'salary?', intentId: 'INTENT_04_PAYMENT_GUARANTEE' },
+    { input: 'salary kitni hai batao', intentId: 'INTENT_04_PAYMENT_GUARANTEE' },
+    { input: 'timing?', intentId: 'INTENT_06_JOB_TIMINGS' },
+    { input: 'office kahan hai', intentId: 'INTENT_07_OFFICE_LOCATION' },
+    { input: 'qualification?', intentId: 'INTENT_08_REQUIREMENTS' },
+    { input: 'scam?', intentId: 'INTENT_03_TRUST_LEGITIMACY' },
+    { input: 'is it safe', intentId: 'INTENT_03_TRUST_LEGITIMACY' },
+    { input: 'hours?', intentId: 'INTENT_06_JOB_TIMINGS' },
+    { input: 'payment kaise hota hai', intentId: 'INTENT_04_PAYMENT_GUARANTEE' },
+    { input: 'experience kitna chahiye', intentId: 'INTENT_08_REQUIREMENTS' },
+  ];
+  const failures = [];
+  for (const { input, intentId } of cases) {
+    const intent = INTENTS.find((i) => i.id === intentId);
+    const s = createSession();
+    const r = await processMessage(s, input);
+    if (!norm(r.reply).startsWith(norm(intent.reply))) {
+      failures.push(`"${input}" -> expected ${intentId}, got: ${JSON.stringify(r.reply.slice(0, 80))}`);
+    }
+  }
+  assert.deepEqual(failures, [], failures.join('\n'));
+});
+
+test('KEYWORD LAYER: ambiguous words must NOT false-positive', async () => {
+  // "pata" (don't know) must NOT trigger the office-location intent;
+  // "job" alone must not trigger any knowledge intent.
+  const cases = [
+    { input: 'mujhe nahi pata', notIntentId: 'INTENT_07_OFFICE_LOCATION' },
+    { input: 'telegram nahi pata', notIntentId: 'INTENT_07_OFFICE_LOCATION' },
+  ];
+  for (const { input, notIntentId } of cases) {
+    const s = createSession();
+    const r = await processMessage(s, input);
+    const notIntent = INTENTS.find((i) => i.id === notIntentId);
+    assert.notEqual(norm(r.reply), norm(notIntent.reply), `"${input}" must not match ${notIntentId}`);
+  }
+});
