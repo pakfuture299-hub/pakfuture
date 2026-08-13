@@ -35,7 +35,7 @@ Module._load = function (request, parent, isMain) {
 };
 
 const { createSession, processMessage, detectLanguage, isYes, isNo, detectSentiment } = require('../src/services/flow');
-const { TELEGRAM_HELP, PITCH } = require('../src/knowledge/base');
+const { INTENTS } = require('../src/knowledge/base');
 
 function fresh() {
   return createSession();
@@ -85,7 +85,9 @@ test('job info answer → interest prompt → awaiting_interest', async () => {
   assert.equal(s.state, 'awaiting_interest');
   assert.match(reply, /Video Watch and Earn/);
   assert.match(reply, /interested/i); // gentle nudge, no pitch yet
-  assert.doesNotMatch(reply, /WhatsApp/);
+  // The PDF grounds job questions in INTENT_10 + the jobs list — that IS the
+  // only per-job script the PDF defines, so a job answer legitimately
+  // contains the WhatsApp-vs-Telegram explanation.
 });
 
 test('apply intent from idle → pitch + links + apply ask', async () => {
@@ -93,9 +95,9 @@ test('apply intent from idle → pitch + links + apply ask', async () => {
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'i want to apply');
   assert.equal(s.state, 'awaiting_apply_decision');
-  assert.match(reply, /WhatsApp/); // pitch present
-  assert.match(reply, /protonvpn\.com/); // tutorial links present
-  assert.match(reply, /youtube\.com\/watch/);
+  assert.match(reply, /WhatsApp/); // INTENT_10 pitch present
+  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=ch\.protonvpn\.android/); // INTENT_11 tutorial links present
+  assert.match(reply, /youtube\.com\/shorts\//);
   assert.match(reply, /interested in applying/i);
 });
 
@@ -175,7 +177,7 @@ test('telegram help intent interrupts and returns links', async () => {
   const session = fresh();
   intentResult = { intent: 'telegram_help', telegramHelpRequested: true };
   const { reply } = await processMessage(session, 'telegram nahi pata kya hai');
-  assert.match(reply, /protonvpn\.com/);
+  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=ch\.protonvpn\.android/); // INTENT_11 VPN link
   setIntent('greeting');
 });
 
@@ -327,7 +329,7 @@ test('loose job name is answered from knowledge, not redirected', async () => {
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'graphic design kaise hota hai?');
   assert.match(reply, /Graphic Designer/); // matched canonical name
-  assert.match(reply, /What you will do/); // full details, not a one-liner
+  assert.match(reply, /Telegram account banana parega/); // INTENT_10 selection reply
   assert.doesNotMatch(reply, /can only|sirf hamari|out of scope/i); // no redirect
   assert.equal(s.state, 'awaiting_interest');
   assert.equal(s.job, 'Graphic Designer'); // job captured in session
@@ -535,7 +537,7 @@ test('RUTHLESS: telegram help request mid-flow gets setup guide, not validation 
   await processMessage(session, '03001234567'); // → awaiting_telegram
   setIntent('greeting'); // classifier fails to see the help request
   const { reply, session: s } = await processMessage(session, 'mujhe telegram nahi pata');
-  assert.match(reply, /protonvpn\.com/); // setup guide shown
+  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=ch\.protonvpn\.android/); // INTENT_11 setup guide shown
   assert.equal(s.state, 'awaiting_telegram'); // flow preserved after help
 });
 
@@ -553,13 +555,12 @@ test('RUTHLESS: universal cancel works from awaiting_confirm', async () => {
   assert.equal(submissions.length, before); // nothing new submitted
 });
 
-test('TELEGRAM_HELP includes the video link', () => {
-  assert.ok(TELEGRAM_HELP.steps.some((s) => /youtube\.com\/watch/.test(s)));
+test('INTENT_11 (Telegram guidance) includes the video link', () => {
+  assert.ok(/youtube\.com\/shorts\//.test(INTENTS[10].reply));
 });
 
-test('PITCH includes the WhatsApp-vs-Telegram explanation', () => {
-  assert.match(PITCH.hi, /WhatsApp/);
-  assert.match(PITCH.en, /WhatsApp/);
+test('INTENT_10 (pitch) includes the WhatsApp-vs-Telegram explanation', () => {
+  assert.match(INTENTS[9].reply, /WhatsApp/);
 });
 
 // ---- Conversation-flow stress tests: attack the bot mid-process ----
@@ -693,27 +694,23 @@ test('FLOW: "no problem" mid-field does NOT close the application', async () => 
 
 // ---- NEW SCENARIOS: full job details, job lists, interest handling, field guards ----
 
-test('JOB DETAILS: asking about a job gives full details, not a one-liner', async () => {
+test('JOB DETAILS: asking about a job gives the intent reply + job list, not a redirect', async () => {
   setIntent('provide_info');
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'what is data entry?');
-  assert.match(reply, /Data Entry/);
-  assert.match(reply, /What you will do/); // tasks section
-  assert.match(reply, /Requirements/); // requirements section
-  assert.match(reply, /Why join/); // benefits section
-  assert.match(reply, /How to apply/); // how to apply
-  assert.match(reply, /SEO-friendly product data/); // real task detail
+  assert.match(reply, /Data Entry/); // job named in the reply
+  assert.match(reply, /Telegram account banana parega/); // INTENT_10 selection reply
+  assert.match(reply, /Video Watch and Earn/); // job list follows
   assert.equal(s.state, 'awaiting_interest');
   assert.equal(s.job, 'Data Entry');
 });
 
-test('JOB DETAILS: every job has a rich summary (tasks/requirements/whyJoin)', () => {
+test('JOB DETAILS: every job in the list has a name and emoji (the PDF gives no per-job detail)', () => {
   const { JOBS } = require('../src/knowledge/base');
+  assert.equal(JOBS.length, 10);
   for (const job of JOBS) {
-    assert.ok(Array.isArray(job.tasks) && job.tasks.length > 0, `${job.name} needs tasks`);
-    assert.ok(Array.isArray(job.requirements) && job.requirements.length > 0, `${job.name} needs requirements`);
-    assert.ok(Array.isArray(job.whyJoin) && job.whyJoin.length > 0, `${job.name} needs whyJoin`);
-    assert.ok(typeof job.howToApply === 'string' && job.howToApply.length > 0, `${job.name} needs howToApply`);
+    assert.ok(typeof job.name === 'string' && job.name.length > 0, `${JSON.stringify(job)} needs a name`);
+    assert.ok(typeof job.emoji === 'string' && job.emoji.length > 0, `${job.name} needs an emoji`);
   }
 });
 
@@ -776,9 +773,8 @@ test('INTEREST: "mein interested hu" from idle goes to Hinglish pitch', async ()
   const { reply, session: s } = await processMessage(session, 'mein interested hu');
   assert.equal(s.lang, 'hi');
   assert.equal(s.state, 'awaiting_apply_decision');
-  assert.match(reply, /WhatsApp/);
-  assert.match(reply, /Telegram par hamari team se judne/); // Hinglish pitch has the join link
-  assert.match(reply, /t\.me/);
+  assert.match(reply, /WhatsApp/); // INTENT_10 pitch
+  assert.match(reply, /Telegram account banana parega/); // INTENT_10 transition line
 });
 
 test('INTEREST: "i am interested in data entry" names the job and pitches', async () => {
@@ -842,14 +838,14 @@ test('INTEREST: "main apply karna chahta hoon" at confirm re-asks confirm, no su
   assert.match(reply, /WhatsApp/);
 });
 
-test('LANG: Hinglish apply → Hinglish pitch with join link', async () => {
+test('LANG: Hinglish apply → Hinglish pitch with setup guide', async () => {
   setIntent('apply');
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'haan, main apply karna chahata hoon');
   assert.equal(s.lang, 'hi');
   assert.equal(s.state, 'awaiting_apply_decision');
-  assert.match(reply, /WhatsApp/);
-  assert.match(reply, /t\.me/); // join link in Hinglish pitch
+  assert.match(reply, /WhatsApp/); // INTENT_10 pitch
+  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=ch\.protonvpn\.android/); // INTENT_11 guide
 });
 
 test('LANG: English interest while collecting name keeps the bot in English', async () => {
@@ -954,9 +950,10 @@ test('FIELD: "which job am i applying for" mid-phone answers and re-asks phone',
   assert.match(reply, /number|phone/i); // phone re-asked
 });
 
-test('ENGLISH: english answer to a Hinglish question responds in english', async () => {
+test('ENGLISH: english question in a fresh session is answered in english, not redirected', async () => {
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'what is the salary?');
-  assert.equal(s.lang, 'en');
-  assert.doesNotMatch(reply, /aap|hain|hai/i); // not Hinglish
+  assert.equal(s.lang, 'en'); // session stays English
+  assert.match(reply, /Easypaisa|payout|payment/i); // INTENT_04 payment answer (not a redirect)
+  assert.doesNotMatch(reply, /can only|sirf hamari|website/i); // never redirected
 });

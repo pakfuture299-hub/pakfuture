@@ -17,7 +17,7 @@
 
 const config = require('../config');
 const { withTimeout } = require('../utils/http');
-const { STORE, JOBS, FAQ } = require('../knowledge/base');
+const { STORE, INTENTS } = require('../knowledge/base');
 const { loadStoreContent } = require('../knowledge/loader');
 const logger = require('../utils/logger');
 
@@ -48,40 +48,39 @@ Rules:
 
 const KNOWLEDGE_COMPACT = `
 STORE: ${STORE.name} — ${STORE.tagline} — Mission: ${STORE.mission}
-Why choose us: ${STORE.whyChooseUs.join(' | ')}
-JOBS (all online, work from home, Rs.0.00 to apply):
-${JOBS.map((j) => `- ${j.name}${j.summary ? ': ' + j.summary : ''}`).join('\n')}
-FAQ:
-${FAQ.map((f) => `Q: ${f.q}\nA: ${f.a}`).join('\n')}
+The bot's knowledge is the client's system-architecture PDF: 12 intents, each with trigger keywords and an EXACT response script. Reply with the matching intent's response script VERBATIM (emojis included).
+INTENTS:
+${INTENTS.map((i) => `[${i.id}] ${i.name}\nTriggers: ${i.triggers.join(', ')}\nReply: ${i.reply}`).join('\n\n')}
 `;
 
-// The full scraped storefront content — the same source the PDF is built
-// from. Lets the bot walk a candidate through every job in detail. Loaded at
-// boot; empty string if the scrape artifact is missing (falls back to the
-// curated content above).
+// The full architecture markdown — the client's source of truth
+// (knowledge/architecture.md), rendered from Job_Portal_Bot_System_Architecture.pdf.
+// Loaded at boot; empty string if the artifact is missing (falls back to the
+// intents in KNOWLEDGE_COMPACT above).
 const STORE_CONTENT = loadStoreContent();
 
 const GROUNDING_PROMPT = `You are the recruitment assistant for ${STORE.name} (${STORE.url}). You hire daily for online work-from-home jobs; all communication happens on Telegram.
 
 RULES:
 1. Answer ONLY from the knowledge provided below. Never invent facts, prices, guarantees, or timelines that are not in it.
-2. Keep answers short, friendly and professional (2-4 sentences). If the candidate asks about a specific job, walk them through what that job involves, its requirements and how to apply — all of that is in the knowledge.
-3. If the candidate asks WHICH jobs are available (e.g. "konsi jobs hain", "which jobs do you have"), list ALL 10 jobs from the knowledge below by name — do NOT reply with APPLY_FLOW, OUT_OF_SCOPE, or a redirect.
-4. If a question is NOT answerable from the knowledge, reply with exactly:
+2. The knowledge is the client's system-architecture document: 12 intents, each with an EXACT response script. When a candidate's message matches an intent (by its trigger keywords), reply with that intent's script VERBATIM — same phrasing, same emojis. This is a hard requirement.
+3. If the candidate asks WHICH jobs are available (e.g. "konsi jobs hain", "which jobs do you have"), reply with the INTENT_02 script verbatim (the full 10-job list).
+4. If the candidate names or asks about a specific job (e.g. "data entry", "video watch and earn"), reply with the INTENT_10 script verbatim (job selection + Telegram transition).
+5. If a question is NOT answerable from the knowledge, reply with exactly:
    OUT_OF_SCOPE
    (the system will then redirect the candidate to the website).
-5. Never ask for personal data yourself. If the user asks to apply or gives details, reply with exactly:
+6. Never ask for personal data yourself. If the user asks to apply or gives details, reply with exactly:
    APPLY_FLOW
-6. If the user asks how to install Telegram or says they don't have it, reply with exactly:
+7. If the user asks how to install Telegram or says they don't have it, reply with exactly:
    TELEGRAM_HELP
-7. For greetings and small talk, reply briefly in a friendly way.
+8. For greetings and small talk, reply briefly in a friendly way.
 
 LANGUAGE: Reply in the same language the candidate uses. If they write in English, answer in English. If they write in Roman Urdu / Hinglish (e.g. "video watch and earn kya hai?"), answer in friendly Roman Urdu / Hinglish, not English. Match their language.
 
-KNOWLEDGE (this is the complete PDF of the website):
+KNOWLEDGE (the complete client system-architecture document):
 ${KNOWLEDGE_COMPACT}
 
-FULL STOREFRONT CONTENT (also part of the PDF — use it for detailed job walkthroughs):
+FULL ARCHITECTURE CONTENT (also part of the knowledge — use it for the exact intent scripts):
 ${STORE_CONTENT}
 `;
 

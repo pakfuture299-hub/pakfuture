@@ -2,14 +2,14 @@
 
 Interactive AI chat widget for **JOB PORTAL GLOBAL 2** (`https://job-portal-global-2.myshopify.com/`), running on a VPS.
 
-A floating chat bubble on the Shopify storefront answers visitor questions using OpenAI (grounded in the site's knowledge base), then hands every candidate the single **Telegram invite link** where the hiring team takes over.
+A floating chat bubble on the Shopify storefront answers visitor questions using OpenAI (grounded strictly in the client's `Job_Portal_Bot_System_Architecture.pdf`), then hands every candidate the single **Telegram invite link** where the hiring team takes over.
 
 ```
 Visitor on Shopify storefront
         │  "how do I apply?" 👋
         ▼
 ┌─────────────────────┐     OpenAI (intent + grounded answers,
-│  Chatbot Backend     │     knowledge base = the site "PDF")
+│  Chatbot Backend     │     knowledge base = the client's architecture PDF)
 │  (Node.js on VPS)    │
 └──────────┬──────────┘
            │ reply + Telegram invite link
@@ -23,8 +23,8 @@ Visitor on Shopify storefront
 
 | Requirement | Implementation |
 |---|---|
-| Interactive AI chat | OpenAI intent classification + grounded answers from the bundled knowledge base |
-| Knowledge guardrail | OpenAI answers **only** from the knowledge base (the "PDF" of the site); off-topic → friendly redirect to website + Telegram link |
+| Interactive AI chat | OpenAI intent classification + grounded answers from the client's architecture PDF |
+| Knowledge guardrail | OpenAI answers **only** from the PDF's 12 intents; off-topic → friendly redirect to website + Telegram link |
 | Single goal | Every relevant intent ends with the Telegram invite link |
 | No backend sessions | Stateless `/api/chat` — every message gets a reply immediately |
 | Spam prevention | Per-IP rate limiting on `/api/chat` |
@@ -39,19 +39,20 @@ Visitor on Shopify storefront
 ```
 .
 ├── .env.example              # every variable, documented
+├── Job_Portal_Bot_System_Architecture.pdf  # the client's source-of-truth PDF
 ├── scripts/
-│   ├── scrape-store.js       # fetch live store → knowledge/store-scrape.md
-│   ├── generate-pdf.js       # markdown → knowledge/PDFs/store-content.pdf
+│   ├── extract-pdf.js        # client PDF → knowledge/architecture.md
+│   ├── generate-pdf.js       # architecture.md → knowledge/PDFs/job-portal-architecture.pdf
 │   └── check-env.js          # boot-time env validation
 ├── knowledge/
-│   ├── store-scrape.md       # source of truth (scraped store content)
-│   └── PDFs/store-content.pdf  # the PDF deliverable
+│   ├── architecture.md       # the client's PDF as markdown (the bot's source of truth)
+│   └── PDFs/                 # regenerable PDF deliverable
 ├── src/
 │   ├── server.js             # boot: config → HTTP → shutdown
 │   ├── app.js                # Express app (health, /api/chat, /widget)
 │   ├── config/index.js       # env config with fail-fast required vars
-│   ├── knowledge/base.js     # ⭐ curated rules, pitch, bilingual flow copy
-│   ├── knowledge/loader.js   # loads store-scrape.md for the bot at boot
+│   ├── knowledge/base.js     # ⭐ the PDF's 12 intents + flow rules, verbatim
+│   ├── knowledge/loader.js   # loads knowledge/architecture.md for the bot at boot
 │   ├── services/
 │   │   ├── flow.js           # ⭐ guided apply state machine (transport-agnostic)
 │   │   ├── chat.js           # storefront chat → flow (session by sessionId)
@@ -83,7 +84,7 @@ The widget now runs a **guided apply flow** (a multi-step conversation, not just
 
 **Bilingual**: replies are English by default, but if the candidate writes in Roman Urdu/Hinglish (e.g. "haan main apply karna chahata hoon") the bot switches to Hinglish and stays in that language for the rest of the flow.
 
-**Questions about jobs** (e.g. "what does video watch and earn involve?") are answered from the knowledge base — the full scraped storefront content — so the bot can walk a candidate through any of the 10 job categories in detail. Anything out of scope gets a friendly redirect to the website.
+**Questions about jobs** (e.g. "what does video watch and earn involve?") are answered from the client's **system-architecture PDF** — the bot delivers the PDF's exact intent scripts. Anything out of scope gets a friendly redirect to the website.
 
 ### Out-of-scope guardrail
 
@@ -91,19 +92,19 @@ Everything **not** in the knowledge base — refunds, shipping, orders, discount
 
 ---
 
-## PDF knowledge deliverable
+## PDF knowledge base (single source of truth)
 
-The store's content (homepage + all 10 job pages) is scraped from the live storefront and turned into a PDF. The **same source** feeds the bot, so the answers always match the PDF.
+The bot answers **only** from the client's `Job_Portal_Bot_System_Architecture.pdf` — its 12 intents, each with trigger keywords and an exact response script. The bot must deliver those scripts verbatim (emojis included). Nothing else is relevant: any question outside the PDF gets a friendly redirect to the website.
 
 ```bash
-npm run build:knowledge   # scrape the store → generate the PDF
+npm run build:knowledge   # extract the client PDF → architecture.md → regenerate the PDF
 ```
 
 Outputs:
-- `knowledge/store-scrape.md` — the source-of-truth markdown (loaded by the bot at boot).
-- `knowledge/PDFs/store-content.pdf` — the PDF deliverable.
+- `knowledge/architecture.md` — the client's PDF as markdown (loaded by the bot at boot).
+- `knowledge/PDFs/job-portal-architecture.pdf` — the regenerable PDF deliverable.
 
-`pdfkit` is a devDependency only — the runtime/deploy is untouched. To regenerate after the store changes: `npm run build:knowledge`, commit the two artifacts, push.
+`pdfkit` is a devDependency only — the runtime/deploy is untouched. To regenerate after the client updates the PDF: replace the root `Job_Portal_Bot_System_Architecture.pdf`, run `npm run build:knowledge`, commit the artifacts, push.
 
 ---
 

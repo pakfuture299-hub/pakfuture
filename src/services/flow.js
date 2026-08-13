@@ -28,9 +28,7 @@ const { submitCandidate } = require('./submission');
 const {
   RULES,
   RULES_HI,
-  PITCH,
-  TELEGRAM_HELP,
-  STORE,
+  INTENTS,
   SENTIMENTS,
   jobsListReply,
 } = require('../knowledge/base');
@@ -305,28 +303,13 @@ function matchJob(text) {
 }
 
 /**
- * A friendly, detailed walkthrough of a job (name + summary + requirements +
- * how to apply) when the knowledge base has that detail — so a candidate
- * asking about a job gets proper details, not just a one-liner.
+ * A friendly answer when a candidate asks about a specific job. The PDF's
+ * INTENT_10 (Job Selection & Telegram Transition) is the only per-job
+ * response script it defines, so a job question is answered with that intent
+ * + the full jobs list (so the candidate sees the options).
  */
 function jobSummary(job) {
-  const lines = [`${job.name}${job.summary ? ': ' + job.summary : ''}`];
-  if (Array.isArray(job.tasks) && job.tasks.length) {
-    lines.push(`What you will do:`);
-    for (const t of job.tasks) lines.push(`• ${t}`);
-  }
-  if (Array.isArray(job.requirements) && job.requirements.length) {
-    lines.push(`Requirements:`);
-    for (const r of job.requirements) lines.push(`• ${r}`);
-  }
-  if (Array.isArray(job.whyJoin) && job.whyJoin.length) {
-    lines.push(`Why join:`);
-    for (const w of job.whyJoin) lines.push(`• ${w}`);
-  }
-  if (job.howToApply) {
-    lines.push(`How to apply: ${job.howToApply}`);
-  }
-  return lines.join('\n');
+  return INTENTS[9].reply + '\n\n' + jobsListReply();
 }
 
 /** Build a fresh session. */
@@ -359,10 +342,9 @@ function fieldReask(session) {
   }
 }
 
-/** The Telegram help guide (VPN → app → video → join), localized intro. */
+/** The Telegram setup guide — INTENT_11 verbatim from the PDF. */
 function telegramHelpReply(session) {
-  const intro = session.lang === 'hi' ? RULES_HI.telegramHelpIntro : TELEGRAM_HELP.intro;
-  return intro + '\n\n' + TELEGRAM_HELP.steps.join('\n');
+  return INTENTS[10].reply;
 }
 
 /**
@@ -381,7 +363,9 @@ function shortGreetingReply(session) {
  */
 function pitchAndAskReply(session) {
   const R = rulesFor(session);
-  const pitch = session.lang === 'hi' ? PITCH.hi : PITCH.en;
+  // INTENT_10 IS the pitch: it explains why Telegram, the WhatsApp comparison,
+  // and asks whether the account is already set up. Then ask to apply.
+  const pitch = INTENTS[9].reply;
   const links = rulesFor(session).noTelegramGuide || telegramHelpReply(session);
   const parts = [];
   if (session.job) {

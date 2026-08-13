@@ -1,11 +1,12 @@
 /**
- * Render knowledge/store-scrape.md into knowledge/PDFs/store-content.pdf.
+ * Render knowledge/architecture.md into knowledge/PDFs/job-portal-architecture.pdf.
  *
  * Uses pdfkit (devDependency only) — pure JS, no browser required.
- * The markdown here is the generator's own output (scripts/scrape-store.js),
- * so parsing is intentionally simple: headings (#/##/###), blockquotes (>),
- * fenced blocks (```), and paragraphs. List markers (-, *, numbered) are
- * rendered as plain paragraphs with a leading bullet.
+ * The markdown here is the generated rendering of the client's
+ * Job_Portal_Bot_System_Architecture.pdf, so parsing is intentionally simple:
+ * headings (#/##/###), blockquotes (>), fenced blocks (```), and paragraphs.
+ * List markers (-, *, numbered) are rendered as plain paragraphs with a
+ * leading bullet.
  *
  * Usage: node scripts/generate-pdf.js
  */
@@ -14,9 +15,9 @@ const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 
-const SRC = path.join(__dirname, '..', 'knowledge', 'store-scrape.md');
+const SRC = path.join(__dirname, '..', 'knowledge', 'architecture.md');
 const OUT_DIR = path.join(__dirname, '..', 'knowledge', 'PDFs');
-const OUT_FILE = path.join(OUT_DIR, 'store-content.pdf');
+const OUT_FILE = path.join(OUT_DIR, 'job-portal-architecture.pdf');
 
 const ACCENT = '#25d366';
 const DARK = '#222222';
@@ -32,7 +33,7 @@ function renderMarkdown(doc, md) {
     const text = line.replace(/&nbsp;/g, ' ');
 
     if (/^```/.test(text)) {
-      continue; // skip fenced-code markers (none expected from the scraper)
+      continue; // skip fenced-code markers (none expected from the architecture doc)
     }
     if (/^#{1,3}\s/.test(text)) {
       const level = /^(#{1,3})\s/.exec(text)[1].length;
@@ -97,7 +98,7 @@ function renderMarkdown(doc, md) {
 
 async function main() {
   if (!fs.existsSync(SRC)) {
-    console.error(`Missing ${SRC} — run "npm run scrape" first.`);
+    console.error(`Missing ${SRC} — extract the client's PDF into knowledge/architecture.md first.`);
     process.exit(1);
   }
 
@@ -108,7 +109,7 @@ async function main() {
     size: 'A4',
     margins: { top: 48, bottom: 48, left: 48, right: 48 },
     info: {
-      Title: 'Job Portal Global 2 — Store Content',
+      Title: 'Job Portal Global — Bot System Architecture & Intent Map',
       Author: 'Job Portal Chatbot',
     },
   });
