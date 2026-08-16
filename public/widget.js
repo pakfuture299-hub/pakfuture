@@ -21,7 +21,7 @@
   // The pointer file below is the preferred source (updated by the VPS
   // whenever the tunnel restarts); API_BASE is only a fallback for when
   // the pointer cannot be fetched.
-  var API_BASE = 'https://married-fuji-cosmetic-colored.trycloudflare.com';
+  var API_BASE = 'https://converter-ids-corrections-lafayette.trycloudflare.com';
   // ------------------------------------------------------------
 
   // Stable pointer file (multi-source so a stale CDN cache never strands
