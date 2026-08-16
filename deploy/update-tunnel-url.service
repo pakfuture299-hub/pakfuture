@@ -1,0 +1,13 @@
+# One-shot runner for the tunnel self-heal check (see the .timer pair).
+# Install:
+#   sudo cp deploy/update-tunnel-url.service /etc/systemd/system/
+#   sudo cp deploy/update-tunnel-url.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now update-tunnel-url.timer
+
+[Unit]
+Description=Run the tunnel URL self-heal check
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/job-portal-chatbot/deploy/update-tunnel-url.sh

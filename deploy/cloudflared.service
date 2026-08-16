@@ -1,0 +1,29 @@
+# Job Portal Chatbot — Cloudflare quick tunnel as a systemd service.
+# Survives reboots and crashes: Restart=always brings the tunnel back and
+# each restart logs a NEW https://...trycloudflare.com URL to
+# /var/log/cloudflared.log, which deploy/update-tunnel-url.sh detects and
+# pushes to public/current-tunnel.txt (GitHub Pages redeploys ~90s).
+#
+# Install:
+#   sudo cp deploy/cloudflared.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cloudflared
+#
+# NOTE: ExecStart assumes cloudflared is at /usr/local/bin/cloudflared.
+# If `which cloudflared` shows a different path, adjust ExecStart below.
+
+[Unit]
+Description=Cloudflare quick tunnel to the chatbot backend
+After=network-online.target job-portal-chatbot.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cloudflared tunnel --url http://localhost:3000
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/cloudflared.log
+StandardError=append:/var/log/cloudflared.log
+
+[Install]
+WantedBy=multi-user.target

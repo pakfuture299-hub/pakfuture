@@ -212,14 +212,27 @@ The widget runs **on the Shopify storefront origin itself** — it is served fro
 
 > The widget's `widget.js` lives on GitHub Pages (`public/` → push to `main` auto-deploys) and injects the bubble + chat window directly into the page — there is no iframe and no postMessage sizing. The chat backend is discovered from the stable `public/current-tunnel.txt` pointer file, verified with a `/health` ping; if the tunnel is down the widget shows a clear error instead of failing silently.
 
-### When the tunnel restarts
+### When the tunnel restarts (fully automated)
 
-Free `trycloudflare` URLs are ephemeral — they change on VPS reboot or `cloudflared` restart. The widget reads the backend URL from `public/current-tunnel.txt` (falling back to the hardcoded constant in `public/widget.js` / `public/widget.html`):
+Free `trycloudflare` URLs are ephemeral — they change on VPS reboot or `cloudflared` restart. The widget reads the backend URL from `public/current-tunnel.txt` (falling back to the hardcoded constant in `public/widget.js` / `public/widget.html`). After a **one-time setup**, the VPS heals itself: systemd restarts `cloudflared`, the self-heal script detects the new URL, verifies it with `/health`, and auto-pushes it to the pointer file. GitHub Pages redeploys automatically on push, and the storefront widget picks up the new URL on its next load. Nobody — us or the client — touches anything.
 
-1. Restart the tunnel and copy the new URL: `cloudflared tunnel --url http://localhost:3000`
-2. Verify it: `curl https://<new-url>.trycloudflare.com/health`
-3. Update `public/current-tunnel.txt` to the new URL (no code change needed).
-4. Commit + push to `main` — GitHub Pages redeploys in ~90 seconds.
+One-time setup on the VPS (requires a `GITHUB_TOKEN` with repo write access in `.env`):
+
+```bash
+sudo cp /opt/job-portal-chatbot/deploy/cloudflared.service /etc/systemd/system/
+sudo cp /opt/job-portal-chatbot/deploy/update-tunnel-url.service /etc/systemd/system/
+sudo cp /opt/job-portal-chatbot/deploy/update-tunnel-url.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cloudflared update-tunnel-url.timer
+```
+
+What happens after a reboot or `cloudflared` restart:
+
+1. `cloudflared.service` (`Restart=always`) brings the tunnel back and logs a **new** `https://...trycloudflare.com` URL.
+2. `update-tunnel-url.timer` runs every minute; `update-tunnel-url.sh` sees the new URL in the log, verifies `{url}/health`, and pushes it to `public/current-tunnel.txt` (plus the hardcoded fallbacks in `widget.js`/`widget.html`).
+3. GitHub Pages rebuilds (~90s) and the widget's next load discovers the new URL.
+
+Recovery takes roughly 1–3 minutes after a reboot — short downtime with the free tier, but it heals itself with no human step.
 
 ---
 

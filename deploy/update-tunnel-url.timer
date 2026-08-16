@@ -1,0 +1,14 @@
+# Runs the tunnel self-heal check every minute. Persistent=true makes it
+# fire right after boot if the machine was off (or the timer was missed),
+# so a reboot heals itself without waiting for the next cycle.
+
+[Unit]
+Description=Check the tunnel URL every minute and auto-update the pointer
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
