@@ -36,9 +36,14 @@ fi
 CURRENT="$(tr -d '[:space:]' < "$POINTER" 2>/dev/null || true)"
 [ "$CURRENT" = "$NEW_URL" ] && exit 0
 
-# 4) Token for the push (kept root-only in .env, never committed).
-GITHUB_TOKEN="$(grep -E '^GITHUB_TOKEN=' "$REPO_DIR/.env" 2>/dev/null | tail -n 1 | cut -d= -f2- || true)"
-[ -n "$GITHUB_TOKEN" ] || exit 0
+# 4) Token for the push. Preferred: .env, parsed strictly so a stray
+#    <placeholder> or quoted line can never break the push. Fallback:
+#    the boot-script token already stored on the VPS (/root/.git-token).
+GITHUB_TOKEN="$(grep -E '^GITHUB_TOKEN=ghp_[A-Za-z0-9]{20,}' "$REPO_DIR/.env" 2>/dev/null | tail -n 1 | cut -d= -f2- || true)"
+if [ -z "$GITHUB_TOKEN" ] && [ -f /root/.git-token ]; then
+  GITHUB_TOKEN="$(head -n 1 /root/.git-token)"
+fi
+[ -n "$GITHUB_TOKEN" ] || { echo "[$(date -u +%FT%TZ)] no token found, skipping push for ${NEW_URL}" >> /var/log/update-tunnel-url.log; exit 0; }
 
 # 5) Update pointer + hardcoded fallbacks so every discovery path is fresh.
 printf '%s\n' "$NEW_URL" > "$POINTER"
@@ -48,8 +53,12 @@ sed -i "s|var API_BASE = 'https://[^']*'|var API_BASE = '$NEW_URL'|" "$WIDGET_JS
 cd "$REPO_DIR"
 git add -- public/current-tunnel.txt public/widget.js public/widget.html
 git -c user.name="tunnel-bot" -c user.email="tunnel-bot@users.noreply.github.com" \
-  commit -m "Auto-update tunnel URL: ${NEW_URL}" --quiet
+  commit -m "Auto-update tunnel URL: ${NEW_URL}" --quiet || true
 git pull --rebase --autostash origin main --quiet || true
-git push "https://x-access-token:${GITHUB_TOKEN}@github.com/pakfuture299-hub/pakfuture.git" main --quiet
-
-printf '[%s] pushed %s\n' "$(date -u +%FT%TZ)" "$NEW_URL" >> /var/log/update-tunnel-url.log
+if git push "https://x-access-token:${GITHUB_TOKEN}@github.com/pakfuture299-hub/pakfuture.git" main --quiet; then
+  echo "[$(date -u +%FT%TZ)] pushed ${NEW_URL}" >> /var/log/update-tunnel-url.log
+else
+  # Fallback: reuse credentials already stored on the VPS.
+  echo "[$(date -u +%FT%TZ)] token push failed, trying stored creds for ${NEW_URL}" >> /var/log/update-tunnel-url.log
+  git push origin main --quiet && echo "[$(date -u +%FT%TZ)] pushed ${NEW_URL} via stored creds" >> /var/log/update-tunnel-url.log || echo "[$(date -u +%FT%TZ)] push failed for ${NEW_URL}" >> /var/log/update-tunnel-url.log
+fi
