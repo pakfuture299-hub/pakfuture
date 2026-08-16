@@ -199,9 +199,14 @@
         });
       }
 
-      // The backend tunnel base. Update this when the tunnel restarts and
-      // the trycloudflare URL changes (see README).
-      var API_BASE = 'https://prophet-hidden-segment-speaker.trycloudflare.com';
+      // The backend tunnel base. The pointer file below is the preferred
+      // source (updated by the VPS whenever the tunnel restarts); API_BASE
+      // is only a fallback for when the pointer cannot be fetched.
+      var API_BASE = 'https://married-fuji-cosmetic-colored.trycloudflare.com';
+      var POINTER_URLS = [
+        'https://pakfuture299-hub.github.io/pakfuture/current-tunnel.txt',
+        'https://raw.githubusercontent.com/pakfuture299-hub/pakfuture/main/public/current-tunnel.txt'
+      ];
       var cachedApiBase = null;
 
       async function pingBackend(base) {
@@ -214,8 +219,28 @@
         } catch (err) { return false; }
       }
 
+      async function fetchPointerText() {
+        for (var i = 0; i < POINTER_URLS.length; i++) {
+          try {
+            var res = await fetch(POINTER_URLS[i], { cache: 'no-store' });
+            if (!res.ok) continue;
+            var text = await res.text();
+            if (text && /^https?:\/\//.test(text.trim())) return text.trim();
+          } catch (err) { /* try next source */ }
+        }
+        return '';
+      }
+
       async function getApiBase() {
         if (cachedApiBase) return cachedApiBase;
+        var text = await fetchPointerText();
+        if (text) {
+          var base = text.replace(/\/+$/, '');
+          if (await pingBackend(base)) {
+            cachedApiBase = base;
+            return base;
+          }
+        }
         if (await pingBackend(API_BASE)) {
           cachedApiBase = API_BASE;
           return API_BASE;

@@ -92,8 +92,8 @@ curl http://localhost:3000/health
 #        cloudflared tunnel --url http://localhost:3000
 #   2. Verify it serves the API:
 #        curl https://<new-url>.trycloudflare.com/health
-#   3. Update the API_BASE constant at the top of public/widget.js
-#      (and public/widget.html) to the new URL.
+#   3. Update public/current-tunnel.txt to the new URL (no code change
+#      needed — the widget reads the backend URL from that pointer file).
 #   4. Commit + push to main — GitHub Pages redeploys public/ automatically
 #      (~90 seconds), and the storefront picks up the new widget.
 #

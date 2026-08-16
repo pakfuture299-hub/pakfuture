@@ -7,9 +7,10 @@
  * Usage in a Shopify page body (one line, nothing else):
  *   <script src="https://pakfuture299-hub.github.io/pakfuture/widget.js"></script>
  *
- * When the backend tunnel restarts, update API_BASE below to the new
- * https://...trycloudflare.com URL and push to main (GitHub Pages
- * redeploys automatically).
+ * When the backend tunnel restarts, update public/current-tunnel.txt to
+ * the new https://...trycloudflare.com URL and push to main (GitHub Pages
+ * redeploys automatically). The widget discovers the URL from that pointer
+ * file; no code change needed.
  */
 (function () {
   'use strict';
@@ -17,8 +18,18 @@
   window.__jpcWidgetLoaded = true;
 
   // ---- THE ONE CONSTANT TO EDIT WHEN THE TUNNEL CHANGES ----
-  var API_BASE = 'https://prophet-hidden-segment-speaker.trycloudflare.com';
+  // The pointer file below is the preferred source (updated by the VPS
+  // whenever the tunnel restarts); API_BASE is only a fallback for when
+  // the pointer cannot be fetched.
+  var API_BASE = 'https://married-fuji-cosmetic-colored.trycloudflare.com';
   // ------------------------------------------------------------
+
+  // Stable pointer file (multi-source so a stale CDN cache never strands
+  // the widget). Kept in public/ so GitHub Pages redeploys it automatically.
+  var POINTER_URLS = [
+    'https://pakfuture299-hub.github.io/pakfuture/current-tunnel.txt',
+    'https://raw.githubusercontent.com/pakfuture299-hub/pakfuture/main/public/current-tunnel.txt'
+  ];
 
   var HOST = 'https://job-portal-global-2.myshopify.com'; // expected origin
 
@@ -143,9 +154,10 @@
     }
   }
 
-  // --- Backend discovery: ping the tunnel; fall back to a same-origin
-  //     call so a dead tunnel shows a clear error instead of failing
-  //     silently. ---
+  // --- Backend discovery: read the tunnel URL from the stable pointer
+  //     file(s) first, verify it with a /health ping, then fall back to
+  //     the hardcoded URL and finally same-origin (so a dead tunnel shows
+  //     a clear error instead of failing silently). ---
   var cachedApiBase = null;
 
   function ping(base) {
@@ -162,8 +174,28 @@
     });
   }
 
+  async function fetchPointerText() {
+    for (var i = 0; i < POINTER_URLS.length; i++) {
+      try {
+        var res = await fetch(POINTER_URLS[i], { cache: 'no-store' });
+        if (!res.ok) continue;
+        var text = await res.text();
+        if (text && /^https?:\/\//.test(text.trim())) return text.trim();
+      } catch (err) { /* try next source */ }
+    }
+    return '';
+  }
+
   async function getApiBase() {
     if (cachedApiBase) return cachedApiBase;
+    var text = await fetchPointerText();
+    if (text) {
+      var base = text.replace(/\/+$/, '');
+      if (await ping(base)) {
+        cachedApiBase = base;
+        return base;
+      }
+    }
     if (await ping(API_BASE)) {
       cachedApiBase = API_BASE;
       return API_BASE;

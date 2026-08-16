@@ -210,15 +210,15 @@ The widget runs **on the Shopify storefront origin itself** — it is served fro
    ```
    That's the only theme change — a bare `<script src>` tag, no Liquid braces, no iframe. Nothing else on the store is touched.
 
-> The widget's `widget.js` lives on GitHub Pages (`public/` → push to `main` auto-deploys) and injects the bubble + chat window directly into the page — there is no iframe and no postMessage sizing. The chat backend is discovered by pinging the tunnel's `/health`; if the tunnel is down the widget shows a clear error instead of failing silently.
+> The widget's `widget.js` lives on GitHub Pages (`public/` → push to `main` auto-deploys) and injects the bubble + chat window directly into the page — there is no iframe and no postMessage sizing. The chat backend is discovered from the stable `public/current-tunnel.txt` pointer file, verified with a `/health` ping; if the tunnel is down the widget shows a clear error instead of failing silently.
 
 ### When the tunnel restarts
 
-Free `trycloudflare` URLs are ephemeral — they change on VPS reboot or `cloudflared` restart. The backend URL is one constant at the top of `public/widget.js` (and `public/widget.html`):
+Free `trycloudflare` URLs are ephemeral — they change on VPS reboot or `cloudflared` restart. The widget reads the backend URL from `public/current-tunnel.txt` (falling back to the hardcoded constant in `public/widget.js` / `public/widget.html`):
 
 1. Restart the tunnel and copy the new URL: `cloudflared tunnel --url http://localhost:3000`
 2. Verify it: `curl https://<new-url>.trycloudflare.com/health`
-3. Update `API_BASE` in `public/widget.js` and `public/widget.html` to the new URL.
+3. Update `public/current-tunnel.txt` to the new URL (no code change needed).
 4. Commit + push to `main` — GitHub Pages redeploys in ~90 seconds.
 
 ---
