@@ -32,9 +32,9 @@ if ! curl -sf -o /dev/null --max-time 10 "${NEW_URL}/health"; then
   exit 0
 fi
 
-# 3) No-op when the pointer already points at this URL.
-CURRENT="$(tr -d '[:space:]' < "$POINTER" 2>/dev/null || true)"
-[ "$CURRENT" = "$NEW_URL" ] && exit 0
+# 3) (No early exit here — even if the pointer already matches, there may
+#    be an unpushed commit from a previous failed push that still needs
+#    sending. The push step below only acts when commits are pending.)
 
 # 4) Token for the push. Preferred: .env, parsed strictly so a stray
 #    <placeholder> or quoted line can never break the push. Fallback:
@@ -49,16 +49,21 @@ fi
 printf '%s\n' "$NEW_URL" > "$POINTER"
 sed -i "s|var API_BASE = 'https://[^']*'|var API_BASE = '$NEW_URL'|" "$WIDGET_JS" "$WIDGET_HTML"
 
-# 6) Commit only the touched files and push.
+# 6) Commit the touched files (no-op if unchanged) and push ANY pending
+#    commits. The push is attempted even when the pointer already matches,
+#    so a commit that failed to push earlier is never stranded forever.
 cd "$REPO_DIR"
 git add -- public/current-tunnel.txt public/widget.js public/widget.html
 git -c user.name="tunnel-bot" -c user.email="tunnel-bot@users.noreply.github.com" \
   commit -m "Auto-update tunnel URL: ${NEW_URL}" --quiet || true
 git pull --rebase --autostash origin main --quiet || true
-if git push "https://x-access-token:${GITHUB_TOKEN}@github.com/pakfuture299-hub/pakfuture.git" main --quiet; then
-  echo "[$(date -u +%FT%TZ)] pushed ${NEW_URL}" >> /var/log/update-tunnel-url.log
-else
-  # Fallback: reuse credentials already stored on the VPS.
-  echo "[$(date -u +%FT%TZ)] token push failed, trying stored creds for ${NEW_URL}" >> /var/log/update-tunnel-url.log
-  git push origin main --quiet && echo "[$(date -u +%FT%TZ)] pushed ${NEW_URL} via stored creds" >> /var/log/update-tunnel-url.log || echo "[$(date -u +%FT%TZ)] push failed for ${NEW_URL}" >> /var/log/update-tunnel-url.log
+
+if [ "$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)" -gt 0 ]; then
+  if git push "https://x-access-token:${GITHUB_TOKEN}@github.com/pakfuture299-hub/pakfuture.git" main --quiet; then
+    echo "[$(date -u +%FT%TZ)] pushed ${NEW_URL}" >> /var/log/update-tunnel-url.log
+  else
+    # Fallback: reuse credentials already stored on the VPS.
+    echo "[$(date -u +%FT%TZ)] token push failed, trying stored creds for ${NEW_URL}" >> /var/log/update-tunnel-url.log
+    git push origin main --quiet && echo "[$(date -u +%FT%TZ)] pushed ${NEW_URL} via stored creds" >> /var/log/update-tunnel-url.log || echo "[$(date -u +%FT%TZ)] push failed for ${NEW_URL}" >> /var/log/update-tunnel-url.log
+  fi
 fi
