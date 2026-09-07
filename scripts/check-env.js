@@ -17,7 +17,7 @@ const rows = [
   ['PORT', config.port, false],
   ['OPENAI_API_KEY', mask(config.openai.apiKey), true],
   ['OPENAI_MODEL', config.openai.model, false],
-  ['INVITE_LINK', config.inviteLink, true],
+  ['DISCORD_USERNAME', config.discordUsername, false],
 ];
 
 console.log('Environment check:');

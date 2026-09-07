@@ -2,7 +2,7 @@
  * Candidate submission service.
  *
  * Owns the "don't lose data" guarantees:
- *  - duplicate detection (same phone / telegram blocked within cooldown),
+ *  - duplicate detection (same phone / discord username blocked within cooldown),
  *  - canonical field normalisation,
  *  - the exact payload contract expected by the n8n workflow,
  *  - async delivery to n8n (queue-friendly, never blocks the response).
@@ -12,7 +12,7 @@ const { enqueueSubmission } = require('./n8n');
 const { RULES, STORE } = require('../knowledge/base');
 const {
   normalizePhone,
-  normalizeTelegram,
+  normalizeDiscordUsername,
   candidateFingerprint,
 } = require('../utils/validation');
 const store = require('../store');
@@ -24,10 +24,10 @@ const logger = require('../utils/logger');
  *   { ok: true, duplicate: false }                       — queued for delivery
  *   { ok: false, duplicate: true }                       — already applied
  */
-function submitCandidate({ name, phone, telegram, job }) {
+function submitCandidate({ name, phone, discord, job }) {
   const normalizedPhone = normalizePhone(phone);
-  const normalizedTelegram = normalizeTelegram(telegram);
-  const fingerprint = candidateFingerprint(normalizedPhone, normalizedTelegram);
+  const normalizedDiscord = normalizeDiscordUsername(discord);
+  const fingerprint = candidateFingerprint(normalizedPhone, normalizedDiscord);
 
   if (fingerprint && store.isDuplicate(fingerprint)) {
     logger.info('Duplicate submission blocked', { fingerprint });
@@ -37,7 +37,7 @@ function submitCandidate({ name, phone, telegram, job }) {
   const payload = {
     name,
     phone: normalizedPhone,
-    telegram: normalizedTelegram,
+    discord: normalizedDiscord,
     job: job || '',
     timestamp: new Date().toISOString(),
     source: STORE.name,

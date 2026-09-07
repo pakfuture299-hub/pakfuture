@@ -6,9 +6,10 @@
  */
 
 const PHONE_RE = /^\+?[0-9]{7,15}$/;
-const TELEGRAM_USERNAME_RE = /^@[a-zA-Z0-9_]{4,32}$/;
-// A number that may also be a Telegram-registered number (digits only).
-const TELEGRAM_NUMBER_RE = /^\+?[0-9]{7,15}$/;
+// A Discord username: 2–32 chars, letters/numbers/dots/underscores, cannot
+// start or end with a dot, and no consecutive dots. The @-prefix is accepted
+// from users and stripped, since Discord never displays it.
+const DISCORD_USERNAME_RE = /^(?=.{2,32}$)(?!\.)(?!.*\.\.)(?!.*\.$)[a-zA-Z0-9._]+$/;
 
 /** Normalise user text: trim, collapse whitespace, strip common filler. */
 function normalizeText(input) {
@@ -39,14 +40,11 @@ function isValidPhone(phone) {
 }
 
 /**
- * Validate a Telegram identifier: @username or a phone number.
+ * Validate a Discord username (an optional leading @ is tolerated).
  */
-function isValidTelegram(value) {
-  const s = normalizeText(value);
-  if (s.startsWith('@')) {
-    return TELEGRAM_USERNAME_RE.test(s);
-  }
-  return TELEGRAM_NUMBER_RE.test(s) && s.replace(/\D/g, '').length >= 7;
+function isValidDiscordUsername(value) {
+  const s = normalizeText(value).replace(/^@/, '');
+  return DISCORD_USERNAME_RE.test(s);
 }
 
 /** Normalise a phone to a canonical storage form: digits, + prefix kept. */
@@ -56,12 +54,11 @@ function normalizePhone(phone) {
   return s.startsWith('+') ? '+' + s.replace(/\D/g, '') : s.replace(/\D/g, '');
 }
 
-/** Normalise a Telegram identifier to @username (lowercased) or digits. */
-function normalizeTelegram(value) {
+/** Normalise a Discord username: strip a leading @ and trim. */
+function normalizeDiscordUsername(value) {
   const s = normalizeText(value);
   if (!s) return '';
-  if (s.startsWith('@')) return s.toLowerCase();
-  return s.startsWith('+') ? '+' + s.replace(/\D/g, '') : s.replace(/\D/g, '');
+  return s.replace(/^@/, '');
 }
 
 /** Strip anything that is not a digit from a string. */
@@ -70,11 +67,11 @@ function digitsOnly(value) {
 }
 
 /** Lightweight fingerprint used for duplicate detection (phone first). */
-function candidateFingerprint(phone, telegram) {
+function candidateFingerprint(phone, discordUsername) {
   const p = digitsOnly(phone);
-  const t = normalizeTelegram(telegram);
+  const d = normalizeDiscordUsername(discordUsername);
   if (p) return `phone:${p}`;
-  if (t) return `tg:${t}`;
+  if (d) return `dc:${d.toLowerCase()}`;
   return null;
 }
 
@@ -115,9 +112,9 @@ module.exports = {
   normalizeText,
   isValidName,
   isValidPhone,
-  isValidTelegram,
+  isValidDiscordUsername,
   normalizePhone,
-  normalizeTelegram,
+  normalizeDiscordUsername,
   digitsOnly,
   candidateFingerprint,
   isRedirectTrigger,

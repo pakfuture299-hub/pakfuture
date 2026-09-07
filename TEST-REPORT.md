@@ -1,7 +1,7 @@
 # Test Report — PDF-Exact Intent Replies
 
 Date: 2026-08-13
-Scope: `Job_Portal_Bot_System_Architecture.pdf` is the **only** knowledge base. Every reply the bot gives to a knowledge question is the PDF's exact response script — byte-for-byte, nothing added (the only additions are the guided-flow's own questions: the apply ask, field re-asks, and the invite link on submission).
+Scope: `Untitled.pdf` is the **only** knowledge base. Every reply the bot gives to a knowledge question is the PDF's exact response script — byte-for-byte, nothing added (the only additions are the guided-flow's own questions: the apply ask, field re-asks, and the Discord team username on submission).
 
 ## Bugs found (user reports) and fixes
 
@@ -42,8 +42,8 @@ All tests run with the AI stubbed to the worst case (returns `out_of_scope` — 
 | `fees hai` / `is there a fee` | "Job Portal Global par application process aur registration policy..." (INTENT_09) |
 | `fees?` / `koi fees lagti hai?` | Same INTENT_09 fees answer (loose keyword in a sentence) |
 | `data entry` / `graphic design` / `yeh job chahiye` | "Zabardast! Aap ka selection bohot behtareen hai. 🎉..." (INTENT_10) |
-| `telegram nahi pata` / `guide karo` | "No problem at all! Main abhi aap ko setup mein complete guidance..." (INTENT_11) |
-| `telegram account done` / `account setup kar liya hai` | "Zabardast! Welldone. 👏✨... 👉 https://t.me/+923244362726" (INTENT_12) |
+| `telegram nahi pata` / `guide karo` | "No problem at all! Main abhi aap ko setup mein complete guidance..." (INTENT_11 Discord guidance) |
+| `discord account done` / `account setup kar liya hai` | "Zabardast! Welldone. 👏✨... 👤 Team Username: bukhtiyaarhussainbranch2050" (INTENT_12) |
 | Anything outside the PDF | Redirect: "I can only assist you with our jobs and applications..." |
 
 ## Files changed

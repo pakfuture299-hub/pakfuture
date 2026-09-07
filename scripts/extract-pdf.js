@@ -1,5 +1,5 @@
 /**
- * Extract the client's Job_Portal_Bot_System_Architecture.pdf into
+ * Extract the client's Untitled.pdf into
  * knowledge/architecture.md — the single source of truth the bot answers
  * from.
  *
@@ -8,14 +8,14 @@
  * knowledge/PDFs/job-portal-architecture.pdf by scripts/generate-pdf.js.
  *
  * Usage: node scripts/extract-pdf.js [path-to-pdf]
- * Default source: Job_Portal_Bot_System_Architecture.pdf (repo root).
+ * Default source: Untitled.pdf (repo root).
  */
 
 const fs = require('fs');
 const path = require('path');
 const pdfParse = require('pdf-parse');
 
-const SRC = path.join(__dirname, '..', process.argv[2] || 'Job_Portal_Bot_System_Architecture.pdf');
+const SRC = path.join(__dirname, '..', process.argv[2] || 'Untitled.pdf');
 const OUT = path.join(__dirname, '..', 'knowledge', 'architecture.md');
 
 (async () => {

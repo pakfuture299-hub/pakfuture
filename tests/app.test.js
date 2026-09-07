@@ -16,12 +16,12 @@ const assert = require('node:assert/strict');
 
 // Stub external services so tests run offline and fast (no OpenAI/Telegram).
 const openaiStub = {
-  classifyIntent: async () => ({ intent: 'greeting', telegramHelpRequested: false }),
+  classifyIntent: async () => ({ intent: 'greeting', discordHelpRequested: false }),
   askGrounded: async () => ({ text: 'stubbed' }),
 };
 const chatStub = {
   getReply: async (message, sessionId) => ({
-    reply: 'stubbed reply with link https://t.me/+923244362726',
+    reply: 'stubbed reply with Discord team username: bukhtiyaarhussainbranch2050',
     sessionId,
     submitted: false,
   }),
@@ -130,7 +130,7 @@ test('POST /webhook/shopify with invalid HMAC is rejected when secret set', asyn
   }
 });
 
-test('POST /api/chat returns a reply with the Telegram link', async () => {
+test('POST /api/chat returns a reply with the Discord team username', async () => {
   const app = createApp();
   const server = await listen(app);
   try {
@@ -142,7 +142,7 @@ test('POST /api/chat returns a reply with the Telegram link', async () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.ok, true);
-    assert.match(body.reply, /https:\/\/t\.me\/\+923244362726/);
+    assert.match(body.reply, /bukhtiyaarhussainbranch2050/);
   } finally {
     await close(server);
   }

@@ -3,7 +3,7 @@
  * (knowledge/architecture.md) at boot.
  *
  * This is the markdown rendering of the client's
- * Job_Portal_Bot_System_Architecture.pdf — the single source of truth the
+ * Untitled.pdf — the single source of truth the
  * bot answers from. The same source is rendered into
  * knowledge/PDFs/job-portal-architecture.pdf by scripts/generate-pdf.js, so
  * the bot answers from exactly what the PDF documents. If the file is

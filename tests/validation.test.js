@@ -8,9 +8,9 @@ const assert = require('node:assert/strict');
 const {
   isValidName,
   isValidPhone,
-  isValidTelegram,
+  isValidDiscordUsername,
   normalizePhone,
-  normalizeTelegram,
+  normalizeDiscordUsername,
   candidateFingerprint,
   isRedirectTrigger,
 } = require('../src/utils/validation');
@@ -45,18 +45,22 @@ test('isValidPhone rejects letters and too-short numbers', () => {
   assert.equal(isValidPhone(''), false);
 });
 
-test('isValidTelegram accepts @username and phone', () => {
-  assert.ok(isValidTelegram('@ali_raza'));
-  assert.ok(isValidTelegram('@AliRaza123'));
-  assert.ok(isValidTelegram('03001234567'));
-  assert.ok(isValidTelegram('+923001234567'));
+test('isValidDiscordUsername accepts normal Discord usernames', () => {
+  assert.ok(isValidDiscordUsername('ali_raza'));
+  assert.ok(isValidDiscordUsername('AliRaza123'));
+  assert.ok(isValidDiscordUsername('ali.raza_2'));
+  assert.ok(isValidDiscordUsername('@ali_raza')); // leading @ tolerated
+  assert.ok(isValidDiscordUsername('bukhtiyaarhussainbranch2050'));
 });
 
-test('isValidTelegram rejects invalid usernames', () => {
-  assert.equal(isValidTelegram('@a'), false); // too short
-  assert.equal(isValidTelegram('@ali raza'), false); // space
-  assert.equal(isValidTelegram('ali'), false); // no @ prefix
-  assert.equal(isValidTelegram('123'), false); // too short number
+test('isValidDiscordUsername rejects invalid usernames', () => {
+  assert.equal(isValidDiscordUsername('a'), false); // too short
+  assert.equal(isValidDiscordUsername('ali raza'), false); // space
+  assert.equal(isValidDiscordUsername('ali!'), false); // symbol
+  assert.equal(isValidDiscordUsername('.ali'), false); // leading dot
+  assert.equal(isValidDiscordUsername('ali.'), false); // trailing dot
+  assert.equal(isValidDiscordUsername('al..i'), false); // consecutive dots
+  assert.equal(isValidDiscordUsername(''), false);
 });
 
 test('normalizePhone keeps digits and + prefix', () => {
@@ -64,14 +68,15 @@ test('normalizePhone keeps digits and + prefix', () => {
   assert.equal(normalizePhone('+92 300 1234567'), '+923001234567');
 });
 
-test('normalizeTelegram lowercases usernames, keeps phone digits', () => {
-  assert.equal(normalizeTelegram('@AliRaza'), '@aliraza');
-  assert.equal(normalizeTelegram('+92 300 1234567'), '+923001234567');
+test('normalizeDiscordUsername strips @ and trims', () => {
+  assert.equal(normalizeDiscordUsername('@AliRaza'), 'AliRaza');
+  assert.equal(normalizeDiscordUsername('ali_raza'), 'ali_raza');
+  assert.equal(normalizeDiscordUsername(''), '');
 });
 
-test('candidateFingerprint prefers phone, falls back to telegram', () => {
-  assert.equal(candidateFingerprint('03001234567', '@ali'), 'phone:03001234567');
-  assert.equal(candidateFingerprint('', '@ali'), 'tg:@ali');
+test('candidateFingerprint prefers phone, falls back to discord username', () => {
+  assert.equal(candidateFingerprint('03001234567', 'ali_raza'), 'phone:03001234567');
+  assert.equal(candidateFingerprint('', 'Ali_Raza'), 'dc:ali_raza');
   assert.equal(candidateFingerprint('', ''), null);
 });
 

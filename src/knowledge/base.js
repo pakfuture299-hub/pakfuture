@@ -1,13 +1,12 @@
 /**
  * Knowledge base for the JOB PORTAL GLOBAL recruitment chatbot.
  *
- * SINGLE SOURCE OF TRUTH: `Job_Portal_Bot_System_Architecture.pdf` (the
- * client's "Bot System Architecture & Intent Map"). It defines 12 intents,
- * each with trigger keywords and an EXACT bot response script. This module
- * encodes that PDF verbatim: the bot must deliver these responses EXACTLY
- * (the PDF's "Execution Rule" — the AI/bot engine may only inject visual
- * emojis naturally into the dynamic generation, maintaining precise
- * phrasing).
+ * SINGLE SOURCE OF TRUTH: `Untitled.pdf` (the client's "Bot System
+ * Architecture & Intent Map"). It defines 12 intents, each with trigger
+ * keywords and an EXACT bot response script. This module encodes that PDF
+ * verbatim: the bot must deliver these responses EXACTLY (the PDF's
+ * "Execution Rule" — the AI/bot engine may only inject visual emojis
+ * naturally into the dynamic generation, maintaining precise phrasing).
  *
  * Everything the bot can say is either:
  *   - a rule below (greeting, apply flow steps, redirect), or
@@ -66,7 +65,7 @@ const INTENTS = [
       'is this a fake job', 'is this genuine', '100 percent trusted', 'fully trusted',
     ],
     reply:
-      'Job Portal Global ek fully verified aur professional platform hai. 🛡️ Hum transparency par yaqeen rakhte hain aur kisi kisam ke fraudulent claims nahi karte. System aur payment process ki mukammal tafseelat hamari official team Telegram par transparent tarike se brief karti hai. 📑',
+      'Job Portal Global ek fully verified aur professional platform hai. 🛡️ Hum transparency par yaqeen rakhte hain aur kisi kisam ke fraudulent claims nahi karte. System aur payment process ki mukammal tafseelat hamari official team Discord par transparent tarike se brief karti hai. 📑',
   },
   {
     id: 'INTENT_04_PAYMENT_GUARANTEE',
@@ -78,7 +77,7 @@ const INTENTS = [
       'when do i get paid', 'earn money', 'kitni salary', 'kitna income',
     ],
     reply:
-      'Hamari tamam payments verified local payment gateways (Easypaisa 💳, JazzCash 📱, aur Direct Bank Transfer 🏦) ke zariye ki jaati hain. Daily aur weekly payout options available hain. Exact salary packages aap ki selected job role par depend karte hain jo team Telegram par finalize karti hai. 💵',
+      'Hamari tamam payments verified local payment gateways (Easypaisa 💳, JazzCash 📱, aur Direct Bank Transfer 🏦) ke zariye ki jaati hain. Daily aur weekly payout options available hain. Exact salary packages aap ki selected job role par depend karte hain jo team Discord par finalize karti hai. 💵',
   },
   {
     id: 'INTENT_05_DIRECT_APPLY',
@@ -90,7 +89,7 @@ const INTENTS = [
       'apply karne ka tarika', 'how to apply',
     ],
     reply:
-      'Job Portal Global par hiring process bohot aasan hai. 🎯 Aap ko bas apni pasand ki job select karni hai aur Telegram ke zariye hamari recruitment team se connect hona hai jahan aap ko onboarding guidelines di jayengi. 📲',
+      'Job Portal Global par hiring process bohot aasan hai. 🎯 Aap ko bas apni pasand ki job select karni hai aur Discord ke zariye hamari recruitment team se connect hona hai jahan aap ko onboarding guidelines di jayengi. 📲',
   },
   {
     id: 'INTENT_06_JOB_TIMINGS',
@@ -146,7 +145,7 @@ const INTENTS = [
   },
   {
     id: 'INTENT_10_JOB_SELECTION',
-    name: 'Job Selection & Telegram Transition',
+    name: 'Job Selection & Discord Transition',
     triggers: [
       'data entry', 'content writing', 'video watch', 'graphic designer', 'amazon va',
       'assignment writing', 'yeh job chahiye', 'is mein interested hoon', 'mai yeh kaam karunga',
@@ -162,51 +161,47 @@ const INTENTS = [
     ],
     reply:
       'Zabardast! Aap ka selection bohot behtareen hai. 🎉\n' +
-      'Hamara poora system aur department Telegram par shifted hai. Agar aap ko high-level earnings aur jobs chahiye, toh aap ko Telegram account banana parega. 📲\n' +
-      'Agar aap ko Telegram ka idea nahi hai, toh main wazeh kar doon ke Telegram ek bohot hi professional business platform hai. Yahan bari-bari companies aur professional departments shifted hain, jin ke bade Channels aur Groups par hazaron nahi balkey lakhon job holders add hain. Hamara system bhi bilkul aisa hi hai.\n' +
+      'Hamara poora system aur department Discord par shifted hai. Agar aap ko high-level earnings aur jobs chahiye, toh aap ko Discord account banana parega. 📲\n' +
+      'Agar aap ko Discord ka idea nahi hai, toh main wazeh kar doon ke Discord ek bohot hi professional business platform hai. Yahan bari-bari companies aur professional departments shifted hain, jin ke bade Channels aur Groups par hazaron nahi balkey lakhon job holders add hain. Hamara system bhi bilkul aisa hi hai.\n' +
       'Agar aap ke zehan mein aata hai ke WhatsApp par yeh kaam kyun nahi ho sakta, toh main batata chaloon ke WhatsApp heavy business operations ke liye design hi nahi hua. WhatsApp bade departments aur un ke heavy workload ko handle nahi kar sakta aur us ka server/account ban ho jata hai.\n' +
-      'Kya aap ka Telegram account pehle se bana hua hai? Agar nahi bana hua toh koi masla nahi, main aap ko step-by-step guide kar deta hoon.',
+      'Kya aap ka Discord account pehle se bana hua hai? Agar nahi bana hua toh koi masla nahi, main aap ko step-by-step guide kar deta hoon.',
   },
   {
-    id: 'INTENT_11_TELEGRAM_GUIDANCE',
-    name: 'Telegram Setup Guidance',
+    id: 'INTENT_11_DISCORD_GUIDANCE',
+    name: 'Discord Setup Guidance',
     triggers: [
       'guide karo', 'kaise banana hai', 'mujhe nahi aata', 'process batao', 'tarika batao',
-      'help karo', 'guide me', 'setup kaise karein', 'nahi bana hua telegram guide karein',
+      'help karo', 'guide me', 'setup kaise karein', 'nahi bana hua discord guide karein',
+      'discord nahi pata', 'discord nahi aata', 'discord kaise banayein', 'discord kaise banana hai',
+      'how to make discord', 'how to install discord', 'discord account kaise banayein',
+      'discord account nahi hai', 'mujhe discord nahi aata', 'discord setup karna hai',
+      'telegram nahi pata', 'telegram nahi aata', 'telegram nahi hai', 'how to install telegram',
     ],
     reply:
       'No problem at all! Main abhi aap ko setup mein complete guidance de deta hoon, is mein sirf 2 minutes lagenge. ⏱️\n' +
-      'Aap ko bas yeh 3 Simple Steps follow karne hain:\n' +
-      '1️⃣ Install Proton VPN: Pakistan mein Telegram smooth chalane ke liye VPN zaroori hai. 🔒\n' +
-      '🔗 Download Proton VPN: https://play.google.com/store/apps/details?id=ch.protonvpn.android\n' +
-      '🎬 Proton VPN Kaise Connect Karein (1 Min Video): https://youtube.com/shorts/7mNoiAz0Y2M?si=sv_iPII8bGpzs2Ac\n' +
-      '2️⃣ Download Telegram App: Google Play Store se Telegram application install kar lein. 📲\n' +
-      '🔗 Download Telegram App: https://play.google.com/store/apps/details?id=org.telegram.messenger\n' +
-      '3️⃣ Watch Video Guide: Maine aap ke sath tutorial video ka link share kar diya hai. Usay dekh kar 5 minutes mein apna Telegram account setup kar lein: 🎥\n' +
-      '🎬 Telegram Setup Video: https://youtu.be/K_ZK5HFWgA4?si=-pUY0A9-xCCQj\n' +
-      '(💡 Note: Video mein VPN connection ka step-by-step process explained hai. Video mein jo Super VPN connect karte hain Telegram account banane ke liye woh ab itni smooth performance nahi deta. Is liye aap Proton VPN hi download karein jo world\'s best aur fast VPN mana jata hai).\n' +
-      'Jaise hi aap ka Telegram account setup ho jaye, mujhe bas ek message kar dein ke \'Telegram account done\' ya \'Account setup kar liya hai\'.\n' +
-      'Main aap ke sath team ka direct chat link share kar doongi. Jaise hi aap us link par click karenge, Telegram mein team ki direct chat open ho jayegi. Aap wahan bas ek message kar dein \'Give me job please\' ya jo bhi aap ka sawal ho.\n' +
-      'Agle 1 se 2 ghante mein hamari team ya boss aap se wahin direct Telegram par contact karenge, jahan aap ko work details, timings, salary payout system samjha diya jayega aur official task groups/channels mein access de di jayegi.\n' +
-      '⚠️ IMPORTANT REMINDER:\n' +
-      'Jab bhi aap ne Telegram open karna ho (account banate waqt ya daily work ke liye), pehle VPN open karke connect MUST karna hai kyunki without VPN Pakistan mein Telegram nahi chalta. Agar aap VPN connect kiye bina Telegram kholein ge, toh server stuck ho jayega aur aap ko koi SMS/Update receive nahi hoga!',
+      'Aap ko bas yeh simple steps follow karne hain:\n' +
+      '1️⃣ Download Discord App: Google Play Store se Discord application install kar lein. 📲\n' +
+      '🔗 Download Discord App: https://play.google.com/store/apps/details?id=com.discord\n' +
+      '2️⃣ Watch Complete Video Guide: Maine aap ke sath tutorial video ka link share kar diya hai. Usay dekh kar 5 minutes mein apna Discord account setup aur use karne ka tariqa samajh lein: 🎥\n' +
+      '🎬 Discord Setup & Usage Video: https://youtu.be/JRFpxT5Njxw?si=5UBLEASoCAz96lme\n' +
+      '📑 Next Step:\n' +
+      'Jaise hi aapka Discord account setup ho jaye, mujhe bas ek message kar dein ke \'Discord account done\' ya \'Account setup kar liya hai\'. 📲\n' +
+      'Uske baad main aapke sath humari team ka direct username share kar doonga. Aap simply "Add Friends" par ja kar username search karke friend request bhej dijiyega. 🤝 Humari team ya supervisor jitna jaldi ho saka aapki request accept karke aapse contact kar lenge. ⚡️\n' +
+      '⚠️ IMPORTANT: Lekin yeh sab karne se pehle, complete video tutorial lazmi dekhein jiska link maine upar aapko share kiya hai, taake aapko sab cheezein achi tarah samajh aa jayein! 📌',
   },
   {
-    id: 'INTENT_12_TELEGRAM_CONFIRMATION',
-    name: 'Telegram Setup Confirmation',
+    id: 'INTENT_12_DISCORD_CONFIRMATION',
+    name: 'Discord Setup Confirmation',
     triggers: [
-      'telegram account done', 'account setup kar liya hai', 'bana liya hai', 'done',
-      'account ban gaya', 'telegram ban gaya', 'setup done', 'done telegram', 'ho gaya',
-      'account ready hai',
+      'discord account done', 'account setup kar liya hai', 'bana liya hai', 'done',
+      'account ban gaya', 'discord ban gaya', 'setup done', 'done discord', 'ho gaya',
+      'account ready hai', 'discord done',
     ],
     reply:
       'Zabardast! Welldone. 👏✨\n' +
-      'Niche diye gaye direct link par click karein, aap direct hamari recruitment team ki official Telegram chat par land ho jayeinge:\n' +
-      '👉 https://t.me/+923244362726\n' +
-      'Chat open hote hi team ko message karein: \'Give me job please\' ya jo bhi aap ka sawal ho.\n' +
-      'Agle 1 se 2 ghante mein hamari team/boss aap ko reply karke work details, timings, aur salary payout system brief kar denge. Welcome aboard! 🚀\n' +
-      '⚠️ IMPORTANT REMINDER ONCE AGAIN:\n' +
-      'Jab bhi aap ne Telegram open karna ho (account banate waqt ya daily work ke liye), pehle VPN open karke connect MUST karna hai kyunki without VPN Pakistan mein Telegram nahi chalta. Agar aap VPN connect kiye bina Telegram kholein ge, toh server stuck ho jayega aur aap ko koi SMS/Update receive nahi hoga!',
+      'Niche diye gaye Username ko Discord par Add Friends bar mein search kar ke direct hamari recruitment team ko request bhaij dein. Yaad rahe spelling vagara mein koi mistake na ho kyunki spelling ya words wrong honge toh aapki request kisi aur ko bhi send ho sakti hai aur aapki job miss ho sakti hai: 📌\n' +
+      '👤 Team Username: bukhtiyaarhussainbranch2050\n' +
+      'Agle 1 se 2 ghante mein hamari team ya boss aap ko reply karke work details, timings, aur salary payout system brief kar denge aur aapka work start ho jayega. Welcome aboard! 🚀',
   },
 ];
 
@@ -233,8 +228,8 @@ const STORE = {
   mission: 'Empower every individual by providing reliable online jobs and financial independence.',
 };
 
-/** The exact Telegram direct-chat link from the PDF (INTENT_12). */
-const INVITE_LINK = 'https://t.me/+923244362726';
+/** The exact Discord team username from the PDF (INTENT_12). */
+const TEAM_DISCORD_USERNAME = 'bukhtiyaarhussainbranch2050';
 
 /** The exact jobs-list reply from the PDF (INTENT_02). */
 function jobsListReply(lang = 'en') {
@@ -316,31 +311,31 @@ const RULES = {
     "That doesn't look like a full name. Please send your name using letters only (2–80 characters). 📝",
   askPhone:
     'Great! Now please share your active contact number (digits only, e.g. 03001234567). 📱',
-  askTelegram:
-    'Almost done! Please share your Telegram username (e.g. @username) OR the mobile number you registered on Telegram (e.g. 03001234567). ✈️',
+  askDiscord:
+    'Almost done! Please share your Discord username (the name you use on Discord, e.g. ali_raza). 🎮',
   phoneInvalid:
     'That number doesn\'t look right. Please send a valid contact number with only digits (e.g. 03001234567, +923001234567, or 923001234567). 📱',
-  telegramInvalid:
-    'That doesn\'t look like a valid Telegram username or number. Please send your Telegram username starting with @ (e.g. @john) or the number you registered on Telegram (e.g. 03001234567). ✈️',
+  discordInvalid:
+    'That doesn\'t look like a valid Discord username. Please send the username you use on Discord — letters, numbers, dots or underscores (e.g. ali_raza, ali.raza_2). 🎮',
   confirmHeader: 'Please confirm your details: ✅',
   confirmPrompt:
-    'Reply with ✅ Yes to submit, or type the field you want to change (Name / Phone / Telegram).',
+    'Reply with ✅ Yes to submit, or type the field you want to change (Name / Phone / Discord).',
   submitted: [
     '🎉 Thank you! Your application has been received.',
-    'Our team will contact you on Telegram shortly with the next steps and your task details.',
-    'Make sure your Telegram is ready so you don\'t miss our message!',
+    'Our team will contact you on Discord shortly with the next steps and your task details.',
+    'Make sure your Discord is ready so you don\'t miss our message!',
   ].join('\n\n'),
-  inviteLinkLine: `Join our team on Telegram to get started: ${INVITE_LINK}`,
+  teamContactLine: `Add our team on Discord to get started. Team username: ${TEAM_DISCORD_USERNAME}`,
   duplicate:
-    'We already received your application recently. Our team will contact you on Telegram shortly — no need to apply again. 🙏',
+    'We already received your application recently. Our team will contact you on Discord shortly — no need to apply again. 🙏',
   throttled:
     'You\'re sending messages very quickly. Please slow down a little so I can help you. 🙏',
   error:
-    'Something went wrong on our side. Please try again in a moment — or contact our team on Telegram directly. 🙏',
+    'Something went wrong on our side. Please try again in a moment — or contact our team on Discord directly. 🙏',
   outOfScopeRedirect: REDIRECT_GUARDRAIL.message,
-  telegramHelpIntro: INTENTS[10].reply,
+  discordHelpIntro: INTENTS[10].reply,
   securityReassurance:
-    'Your details are completely safe with us! 🔒 We only use your name, contact number and Telegram ID to process your application — nothing is shared or sold. Job Portal Global is a fully verified and professional platform. 🛡️',
+    'Your details are completely safe with us! 🔒 We only use your name, contact number and Discord username to process your application — nothing is shared or sold. Job Portal Global is a fully verified and professional platform. 🛡️',
 };
 
 /** Hinglish (Roman Urdu) variants of the flow rules, used when the candidate writes in Roman Urdu/Hinglish. */
@@ -356,50 +351,50 @@ const RULES_HI = {
   pitchIntro:
     'Apply karne se pehle, main samjha doon ke hamari team kaise kaam karti hai — ye jaanna zaroori hai:',
   applyAsk: 'Kya aap apply karne mein interested hain? (Haan / Nahi)',
-  noTelegramGuide: INTENTS[10].reply,
+  noDiscordGuide: INTENTS[10].reply,
   notInterested:
     'Koi masla nahi! 😊 Agar kabhi dil kare, toh dobara chat khol lein aur hum shuru kar denge. Allah Hafiz!',
   askName: 'Apna poora naam share karein taake application shuru ho. 📝',
   askPhone:
     'Bohat acha! Ab apna active contact number bhejein (sirf digits, masalan 03001234567). 📱',
-  askTelegram:
-    'Almost ho gaya! Apna Telegram username (masalan @username) YA Telegram par registered mobile number bhejein (masalan 03001234567). ✈️',
+  askDiscord:
+    'Almost ho gaya! Apna Discord username bhejein (jo naam aap Discord par use karte hain, masalan ali_raza). 🎮',
   nameInvalid:
     'Mazrat, ye naam sahi nahi laga. Letters mein poora naam bhejein (2–80 characters). 📝',
   phoneInvalid:
     'Ye number sahi nahi laga. Sirf digits mein valid number bhejein (masalan 03001234567, +923001234567). 📱',
-  telegramInvalid:
-    'Ye Telegram username/number sahi nahi laga. @ se shuru hone wala username (masalan @john) ya registered number bhejein. ✈️',
+  discordInvalid:
+    'Ye Discord username sahi nahi laga. Discord wala username bhejein — letters, numbers, dots ya underscores (masalan ali_raza). 🎮',
   confirmHeader: 'Apni details confirm karein: ✅',
   confirmPrompt:
-    'Submit karne ke liye ✅ Haan likhein, ya change karne ke liye field ka naam batayein (Naam / Phone / Telegram).',
+    'Submit karne ke liye ✅ Haan likhein, ya change karne ke liye field ka naam batayein (Naam / Phone / Discord).',
   submitted: [
     `🎉 Shukriya! Aap ki application mil gayi hai.`,
-    `Hamari team jald hi aap ko Telegram par next steps aur task details bhejegi.`,
-    `Yakeeni banayein ke aap ka Telegram ready hai taake hamara message miss na ho!`,
+    `Hamari team jald hi aap ko Discord par next steps aur task details bhejegi.`,
+    `Yakeeni banayein ke aap ka Discord ready hai taake hamara message miss na ho!`,
   ].join('\n\n'),
-  inviteLinkLine: `Hamaari team se judne ke liye Telegram par aayein: ${INVITE_LINK}`,
+  teamContactLine: `Hamaari team se judne ke liye Discord par aayein. Team username: ${TEAM_DISCORD_USERNAME}`,
   duplicate:
-    'Aap ki application humein pehle hi mil chuki hai. Hamari team jald hi Telegram par rabta karegi — dobara apply karne ki zaroorat nahi. 🙏',
+    'Aap ki application humein pehle hi mil chuki hai. Hamari team jald hi Discord par rabta karegi — dobara apply karne ki zaroorat nahi. 🙏',
   throttled:
     'Aap bohat tezi se messages bhej rahe hain. Zara aaram se — main madad kar raha hoon. 🙏',
   error:
-    'Hamari taraf se kuch masla ho gaya. Ek minute baad dobara try karein — ya team ko Telegram par directly contact karein. 🙏',
+    'Hamari taraf se kuch masla ho gaya. Ek minute baad dobara try karein — ya team ko Discord par directly contact karein. 🙏',
   outOfScopeRedirect:
     'Main sirf hamari jobs aur applications mein madad kar sakta hoon. Kisi aur cheez ke liye website par tafseelat dekhein 👉 ' +
     STORE.url,
-  telegramHelpIntro: INTENTS[10].reply,
+  discordHelpIntro: INTENTS[10].reply,
   securityReassurance:
-    'Aap ki details bilkul mehfooz hain! 🔒 Hum sirf aap ka naam, contact number aur Telegram ID application process ke liye use karte hain — kisi se share ya bech nahi jaati. Job Portal Global ek fully verified aur professional platform hai. 🛡️',
+    'Aap ki details bilkul mehfooz hain! 🔒 Hum sirf aap ka naam, contact number aur Discord username application process ke liye use karte hain — kisi se share ya bech nahi jaati. Job Portal Global ek fully verified aur professional platform hai. 🛡️',
   done:
-    'Aap ki application already submit ho chuki hai — hamari team jald hi Telegram par rabta karegi. 🎉',
+    'Aap ki application already submit ho chuki hai — hamari team jald hi Discord par rabta karegi. 🎉',
 };
 
 module.exports = {
   STORE,
   JOBS,
   INTENTS,
-  INVITE_LINK,
+  TEAM_DISCORD_USERNAME,
   RULES,
   RULES_HI,
   SENTIMENTS,

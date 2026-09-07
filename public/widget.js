@@ -90,7 +90,7 @@
 
   var messagesEl = el('div', { id: 'jpc-messages' });
   messagesEl.appendChild(
-    el('div', { class: 'jpc-msg bot', html: '👋 Hi! Ask us about our online jobs, or join our Telegram to get started.' })
+    el('div', { class: 'jpc-msg bot', html: '👋 Hi! Ask us about our online jobs, or join our Discord to get started.' })
   );
   windowEl.appendChild(messagesEl);
 

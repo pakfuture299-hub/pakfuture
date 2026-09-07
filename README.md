@@ -2,7 +2,7 @@
 
 Interactive AI chat widget for **JOB PORTAL GLOBAL 2** (`https://job-portal-global-2.myshopify.com/`), running on a VPS.
 
-A floating chat bubble on the Shopify storefront answers visitor questions using OpenAI (grounded strictly in the client's `Job_Portal_Bot_System_Architecture.pdf`), then hands every candidate the single **Telegram invite link** where the hiring team takes over.
+A floating chat bubble on the Shopify storefront answers visitor questions using OpenAI (grounded strictly in the client's `Untitled.pdf`), then hands every candidate the **Discord team username** where the hiring team takes over.
 
 ```
 Visitor on Shopify storefront
@@ -12,9 +12,9 @@ Visitor on Shopify storefront
 │  Chatbot Backend     │     knowledge base = the client's architecture PDF)
 │  (Node.js on VPS)    │
 └──────────┬──────────┘
-           │ reply + Telegram invite link
+           │ reply + Discord team username
            ▼
-     Visitor joins:  https://t.me/+923244362726
+     Visitor adds:  bukhtiyaarhussainbranch2050 on Discord
 ```
 
 ---
@@ -24,8 +24,8 @@ Visitor on Shopify storefront
 | Requirement | Implementation |
 |---|---|
 | Interactive AI chat | OpenAI intent classification + grounded answers from the client's architecture PDF |
-| Knowledge guardrail | OpenAI answers **only** from the PDF's 12 intents; off-topic → friendly redirect to website + Telegram link |
-| Single goal | Every relevant intent ends with the Telegram invite link |
+| Knowledge guardrail | OpenAI answers **only** from the PDF's 12 intents; off-topic → friendly redirect to website + Discord username |
+| Single goal | Every relevant intent ends with the Discord team username |
 | No backend sessions | Stateless `/api/chat` — every message gets a reply immediately |
 | Spam prevention | Per-IP rate limiting on `/api/chat` |
 | Logging | Structured JSON logs in production, pretty in dev |
@@ -39,7 +39,7 @@ Visitor on Shopify storefront
 ```
 .
 ├── .env.example              # every variable, documented
-├── Job_Portal_Bot_System_Architecture.pdf  # the client's source-of-truth PDF
+├── Untitled.pdf                  # the client's source-of-truth PDF
 ├── scripts/
 │   ├── extract-pdf.js        # client PDF → knowledge/architecture.md
 │   ├── generate-pdf.js       # architecture.md → knowledge/PDFs/job-portal-architecture.pdf
@@ -75,12 +75,12 @@ Visitor on Shopify storefront
 The widget now runs a **guided apply flow** (a multi-step conversation, not just a link hand-off):
 
 1. **Open** — visitor clicks the floating bubble; a friendly greeting appears.
-2. **Pitch** — the bot explains the team hires daily and that all work happens on Telegram (including the "why Telegram, not WhatsApp" explanation).
-3. **Ask: do you have Telegram?**
-   - **No** → the bot guides setup step-by-step: Proton VPN link → Telegram app link → a YouTube setup tutorial → then proceeds.
+2. **Pitch** — the bot explains the team hires daily and that all work happens on Discord (including the "why Discord, not WhatsApp" explanation).
+3. **Ask: do you have Discord?**
+   - **No** → the bot guides setup step-by-step: Discord app link → a YouTube setup tutorial → then proceeds.
    - **Yes** → proceeds straight away.
-4. **Collect details** — Name → Contact Number → Telegram username/number, each validated, with a confirm step before submitting.
-5. **Submit** — the application is POSTed to n8n → Google Sheets, and the team contacts the candidate on Telegram.
+4. **Collect details** — Name → Contact Number → Discord username, each validated, with a confirm step before submitting.
+5. **Submit** — the application is POSTed to n8n → Google Sheets, and the team contacts the candidate on Discord.
 
 **Bilingual**: replies are English by default, but if the candidate writes in Roman Urdu/Hinglish (e.g. "haan main apply karna chahata hoon") the bot switches to Hinglish and stays in that language for the rest of the flow.
 
@@ -94,7 +94,7 @@ Everything **not** in the knowledge base — refunds, shipping, orders, discount
 
 ## PDF knowledge base (single source of truth)
 
-The bot answers **only** from the client's `Job_Portal_Bot_System_Architecture.pdf` — its 12 intents, each with trigger keywords and an exact response script. The bot must deliver those scripts verbatim (emojis included). Nothing else is relevant: any question outside the PDF gets a friendly redirect to the website.
+The bot answers **only** from the client's `Untitled.pdf` — its 12 intents, each with trigger keywords and an exact response script. The bot must deliver those scripts verbatim (emojis included). Nothing else is relevant: any question outside the PDF gets a friendly redirect to the website.
 
 ```bash
 npm run build:knowledge   # extract the client PDF → architecture.md → regenerate the PDF
@@ -104,7 +104,7 @@ Outputs:
 - `knowledge/architecture.md` — the client's PDF as markdown (loaded by the bot at boot).
 - `knowledge/PDFs/job-portal-architecture.pdf` — the regenerable PDF deliverable.
 
-`pdfkit` is a devDependency only — the runtime/deploy is untouched. To regenerate after the client updates the PDF: replace the root `Job_Portal_Bot_System_Architecture.pdf`, run `npm run build:knowledge`, commit the artifacts, push.
+`pdfkit` is a devDependency only — the runtime/deploy is untouched. To regenerate after the client updates the PDF: replace the root `Untitled.pdf`, run `npm run build:knowledge`, commit the artifacts, push.
 
 ---
 
@@ -171,7 +171,7 @@ node scripts/check-env.js   # validates every variable
 npm run dev                 # starts the API + widget on :3000
 ```
 
-The **only** required environment variable is `OPENAI_API_KEY`. `INVITE_LINK` defaults to the Telegram invite link.
+The **only** required environment variable is `OPENAI_API_KEY`. `DISCORD_USERNAME` defaults to the Discord team username.
 
 Test locally: open `http://localhost:3000/widget` and chat with the widget directly.
 
@@ -244,7 +244,7 @@ See `.env.example` for the full documented list. Secrets used:
 |---|---|
 | `OPENAI_API_KEY` | OpenAI Chat Completions calls (**required**) |
 | `OPENAI_MODEL` | Model id, default `gpt-4o-mini` |
-| `INVITE_LINK` | The Telegram invite link the widget hands out |
+| `DISCORD_USERNAME` | The Discord team username the widget hands out (default `bukhtiyaarhussainbranch2050`) |
 | `ALLOWED_ORIGINS` | Comma-separated storefront origins allowed to call `/api/chat` |
 | `RATE_LIMIT_PER_MINUTE` | Max messages per IP per minute on `/api/chat` |
 

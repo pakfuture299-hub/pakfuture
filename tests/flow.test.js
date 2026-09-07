@@ -12,7 +12,7 @@ const assert = require('node:assert/strict');
 // Stub the AI + submission so the state machine runs deterministically.
 const Module = require('module');
 const originalLoad = Module._load;
-let intentResult = { intent: 'greeting', telegramHelpRequested: false };
+let intentResult = { intent: 'greeting', discordHelpRequested: false };
 let groundedResult = { text: 'stubbed' };
 const submissions = [];
 
@@ -42,7 +42,7 @@ function fresh() {
 }
 
 function setIntent(intent) {
-  intentResult = { intent, telegramHelpRequested: false };
+  intentResult = { intent, discordHelpRequested: false };
 }
 
 test('detectLanguage: english stays en', () => {
@@ -53,7 +53,7 @@ test('detectLanguage: english stays en', () => {
 test('detectLanguage: hinglish markers switch to hi', () => {
   assert.equal(detectLanguage('haan main apply karna chahata hoon'), 'hi');
   assert.equal(detectLanguage('aap ki jobs kya hain'), 'hi');
-  assert.equal(detectLanguage('nahi, mujhe telegram nahi pata'), 'hi');
+  assert.equal(detectLanguage('nahi, mujhe discord nahi pata'), 'hi');
 });
 
 test('isYes / isNo parse plain answers', () => {
@@ -71,9 +71,9 @@ test('greeting gets a SHORT intro, no pitch, stays in idle', async () => {
   const session = fresh();
   const { reply, session: s } = await processMessage(session, 'hi');
   assert.equal(s.state, 'idle');
-  // Short intro — no pitch, no "do you have telegram" yet.
+  // Short intro — no pitch, no "do you have discord" yet.
   assert.doesNotMatch(reply, /WhatsApp/);
-  assert.doesNotMatch(reply, /Telegram account pehle se bana/);
+  assert.doesNotMatch(reply, /Discord account pehle se bana/);
   assert.match(reply, /Welcome|hello|hi/i);
 });
 
@@ -115,7 +115,7 @@ test('apply decision: no → polite close, done', async () => {
   assert.match(reply, /problem|masla|change your mind|dil kare/i);
 });
 
-test('full happy path: apply → yes → name → phone → telegram → confirm → submit + invite link', async () => {
+test('full happy path: apply → yes → name → phone → discord → confirm → submit + team username', async () => {
   const session = fresh();
   setIntent('apply');
   await processMessage(session, 'i want to apply'); // → awaiting_apply_decision
@@ -123,23 +123,23 @@ test('full happy path: apply → yes → name → phone → telegram → confirm
   assert.equal(r.session.state, 'awaiting_name');
   r = await processMessage(session, 'Ali Raza'); // → awaiting_phone
   assert.equal(r.session.state, 'awaiting_phone');
-  r = await processMessage(session, '03001234567'); // → awaiting_telegram
-  assert.equal(r.session.state, 'awaiting_telegram');
-  r = await processMessage(session, '@ali_r'); // → awaiting_confirm
+  r = await processMessage(session, '03001234567'); // → awaiting_discord
+  assert.equal(r.session.state, 'awaiting_discord');
+  r = await processMessage(session, 'ali_raza'); // → awaiting_confirm
   assert.equal(r.session.state, 'awaiting_confirm');
   assert.match(r.reply, /Ali Raza/);
   assert.match(r.reply, /03001234567/);
-  r = await processMessage(session, 'yes'); // → done + submitted + invite link
+  r = await processMessage(session, 'yes'); // → done + submitted + team username
   assert.equal(r.session.state, 'done');
   assert.equal(r.submitted, true);
-  assert.match(r.reply, /t\.me/); // invite link at the end
+  assert.match(r.reply, /bukhtiyaarhussainbranch2050/); // team Discord username at the end
   assert.equal(submissions.length, 1);
   assert.equal(submissions[0].name, 'Ali Raza');
   assert.equal(submissions[0].phone, '03001234567');
-  assert.equal(submissions[0].telegram, '@ali_r');
+  assert.equal(submissions[0].discord, 'ali_raza');
 });
 
-test('invalid name / phone / telegram are rejected and re-asked', async () => {
+test('invalid name / phone / discord are rejected and re-asked', async () => {
   const session = fresh();
   setIntent('apply');
   await processMessage(session, 'i want to apply');
@@ -150,8 +150,8 @@ test('invalid name / phone / telegram are rejected and re-asked', async () => {
   r = await processMessage(session, 'abc'); // invalid phone
   assert.equal(r.session.state, 'awaiting_phone');
   r = await processMessage(session, '03001234567');
-  r = await processMessage(session, 'not-a-tg'); // invalid telegram
-  assert.equal(r.session.state, 'awaiting_telegram');
+  r = await processMessage(session, 'a'); // invalid discord username
+  assert.equal(r.session.state, 'awaiting_discord');
 });
 
 test('field edit on confirm resets that field', async () => {
@@ -161,17 +161,17 @@ test('field edit on confirm resets that field', async () => {
   await processMessage(session, 'haan');
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
-  await processMessage(session, '@ali_r');
+  await processMessage(session, 'ali_raza');
   let r = await processMessage(session, 'name'); // edit name
   assert.equal(r.session.state, 'awaiting_name');
   assert.equal(r.session.name, null);
 });
 
-test('telegram help intent interrupts and returns links', async () => {
+test('discord help intent interrupts and returns links', async () => {
   const session = fresh();
-  intentResult = { intent: 'telegram_help', telegramHelpRequested: true };
-  const { reply } = await processMessage(session, 'telegram nahi pata kya hai');
-  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=ch\.protonvpn\.android/); // INTENT_11 VPN link
+  intentResult = { intent: 'discord_help', discordHelpRequested: true };
+  const { reply } = await processMessage(session, 'discord nahi pata kya hai');
+  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=com\.discord/); // INTENT_11 Discord app link
   setIntent('greeting');
 });
 
@@ -247,7 +247,7 @@ test('job question mid-flow (awaiting_interest) is answered, not pushed to pitch
   groundedResult = { text: 'We have 10 jobs: Video Watch and Earn, Assignment Writing, ...' };
   const { reply, session: s } = await processMessage(session, 'konsi jobs hain?');
   assert.match(reply, /10 jobs|Video Watch and Earn/i); // answered from knowledge
-  assert.doesNotMatch(reply, /WhatsApp|protonvpn/); // no pitch
+  assert.doesNotMatch(reply, /WhatsApp/); // no pitch
   assert.equal(s.state, 'awaiting_interest'); // flow preserved
 });
 
@@ -259,7 +259,7 @@ test('"konsi jobs hain" as first message is answered, not greeted', async () => 
   const { reply, session: s } = await processMessage(session, 'konsi jobs hain?');
   assert.match(reply, /Video Watch and Earn/); // the list is deterministic
   assert.match(reply, /Amazon FBA/); // all jobs listed
-  assert.doesNotMatch(reply, /WhatsApp|protonvpn/); // not a pitch
+  assert.doesNotMatch(reply, /WhatsApp/); // not a pitch
   assert.equal(s.state, 'awaiting_interest');
 });
 
@@ -367,7 +367,7 @@ test('chosen job appears in confirm screen and submission', async () => {
   await processMessage(session, 'haan'); // yes to the pitch → awaiting_name
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
-  const r = await processMessage(session, '@ali_r'); // → awaiting_confirm
+  const r = await processMessage(session, 'ali_raza'); // → awaiting_confirm
   assert.match(r.reply, /Graphic Designer/); // job in confirm screen
   await processMessage(session, 'yes');
   assert.equal(submissions[submissions.length - 1].job, 'Graphic Designer'); // job in submission
@@ -380,7 +380,7 @@ test('done state: new message resets to a fresh conversation (no duplicate submi
   await processMessage(session, 'haan');
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
-  await processMessage(session, '@ali_r');
+  await processMessage(session, 'ali_raza');
   await processMessage(session, 'yes');
   const before = submissions.length;
   setIntent('greeting');
@@ -405,13 +405,13 @@ test('RUTHLESS: "i am no longer interested" while asked for phone closes politel
   assert.equal(s.phone, null); // not polluted
 });
 
-test('RUTHLESS: "i am no longer interested" while asked for telegram closes', async () => {
+test('RUTHLESS: "i am no longer interested" while asked for discord closes', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza');
-  await processMessage(session, '03001234567'); // → awaiting_telegram
+  await processMessage(session, '03001234567'); // → awaiting_discord
   const { reply, session: s } = await processMessage(session, 'im no longer interested now');
   assert.equal(s.state, 'done');
   assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
@@ -445,7 +445,7 @@ test('RUTHLESS: plain "no" at confirm closes, not re-ask', async () => {
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
-  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  await processMessage(session, 'ali_raza'); // → awaiting_confirm
   const before = submissions.length;
   const { reply, session: s } = await processMessage(session, 'no');
   assert.equal(s.state, 'done');
@@ -514,17 +514,17 @@ test('RUTHLESS: "no" at interest prompt closes politely, not pitch', async () =>
   assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
 });
 
-test('RUTHLESS: telegram help request mid-flow gets setup guide, not validation error', async () => {
+test('RUTHLESS: discord help request mid-flow gets setup guide, not validation error', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza');
-  await processMessage(session, '03001234567'); // → awaiting_telegram
+  await processMessage(session, '03001234567'); // → awaiting_discord
   setIntent('greeting'); // classifier fails to see the help request
-  const { reply, session: s } = await processMessage(session, 'mujhe telegram nahi pata');
-  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=ch\.protonvpn\.android/); // INTENT_11 setup guide shown
-  assert.equal(s.state, 'awaiting_telegram'); // flow preserved after help
+  const { reply, session: s } = await processMessage(session, 'mujhe discord nahi pata');
+  assert.match(reply, /play\.google\.com\/store\/apps\/details\?id=com\.discord/); // INTENT_11 setup guide shown
+  assert.equal(s.state, 'awaiting_discord'); // flow preserved after help
 });
 
 test('RUTHLESS: universal cancel works from awaiting_confirm', async () => {
@@ -534,18 +534,18 @@ test('RUTHLESS: universal cancel works from awaiting_confirm', async () => {
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
-  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  await processMessage(session, 'ali_raza'); // → awaiting_confirm
   const before = submissions.length;
   const { reply, session: s } = await processMessage(session, 'i dont want to apply anymore');
   assert.equal(s.state, 'done');
   assert.equal(submissions.length, before); // nothing new submitted
 });
 
-test('INTENT_11 (Telegram guidance) includes the video link', () => {
-  assert.ok(/youtube\.com\/shorts\//.test(INTENTS[10].reply));
+test('INTENT_11 (Discord guidance) includes the video link', () => {
+  assert.ok(/youtu\.be\//.test(INTENTS[10].reply));
 });
 
-test('INTENT_10 (pitch) includes the WhatsApp-vs-Telegram explanation', () => {
+test('INTENT_10 (pitch) includes the WhatsApp-vs-Discord explanation', () => {
   assert.match(INTENTS[9].reply, /WhatsApp/);
 });
 
@@ -589,17 +589,17 @@ test('FLOW: job details asked while collecting phone are answered, phone re-aske
   assert.equal(s.phone, null); // not polluted
 });
 
-test('FLOW: sentiment "thanks" while collecting telegram gets warm reply + telegram re-asked', async () => {
+test('FLOW: sentiment "thanks" while collecting discord gets warm reply + discord re-asked', async () => {
   setIntent('apply');
   const session = fresh();
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza');
-  await processMessage(session, '03001234567'); // → awaiting_telegram
+  await processMessage(session, '03001234567'); // → awaiting_discord
   const { reply, session: s } = await processMessage(session, 'thank you so much');
   assert.match(reply, /welcome|shukriya/i); // warm reply
-  assert.match(reply, /telegram/i); // telegram re-asked
-  assert.equal(s.state, 'awaiting_telegram'); // flow preserved
+  assert.match(reply, /discord/i); // discord re-asked
+  assert.equal(s.state, 'awaiting_discord'); // flow preserved
 });
 
 test('FLOW: job question at confirm is answered and confirm re-asked', async () => {
@@ -609,7 +609,7 @@ test('FLOW: job question at confirm is answered and confirm re-asked', async () 
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
-  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  await processMessage(session, 'ali_raza'); // → awaiting_confirm
   setIntent('provide_info');
   groundedResult = { text: 'Amazon FBA: Work from home with Amazon FBA.' };
   const { reply, session: s } = await processMessage(session, 'amazon fba kya hai?');
@@ -639,10 +639,10 @@ test('FLOW: full application survives a barrage of side questions', async () => 
   await processMessage(session, 'thank you'); // sentiment
   assert.equal(session.state, 'awaiting_phone');
   await processMessage(session, '03001234567'); // actual phone
-  assert.equal(session.state, 'awaiting_telegram');
+  assert.equal(session.state, 'awaiting_discord');
   assert.equal(session.phone, '03001234567');
-  // Attack the telegram step.
-  await processMessage(session, '@ali_r'); // actual telegram
+  // Attack the discord step.
+  await processMessage(session, 'ali_raza'); // actual discord
   assert.equal(session.state, 'awaiting_confirm');
   const before = submissions.length;
   await processMessage(session, 'yes'); // submit
@@ -650,7 +650,7 @@ test('FLOW: full application survives a barrage of side questions', async () => 
   assert.equal(submissions.length, before + 1); // exactly one submission
   assert.equal(session.name, 'Ali Raza');
   assert.equal(session.phone, '03001234567');
-  assert.equal(session.telegram, '@ali_r');
+  assert.equal(session.discord, 'ali_raza');
 });
 
 test('FLOW: "no thanks" mid-field backs out, not a sentiment reply', async () => {
@@ -659,7 +659,7 @@ test('FLOW: "no thanks" mid-field backs out, not a sentiment reply', async () =>
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza');
-  await processMessage(session, '03001234567'); // → awaiting_telegram
+  await processMessage(session, '03001234567'); // → awaiting_discord
   const { reply, session: s } = await processMessage(session, 'no thanks');
   assert.equal(s.state, 'done'); // backed out
   assert.match(reply, /problem|masla|change your mind|dil kare|no problem/i);
@@ -672,9 +672,9 @@ test('FLOW: "no problem" mid-field does NOT close the application', async () => 
   await processMessage(session, 'i want to apply');
   await processMessage(session, 'yes');
   await processMessage(session, 'Ali Raza');
-  await processMessage(session, '03001234567'); // → awaiting_telegram
+  await processMessage(session, '03001234567'); // → awaiting_discord
   const { session: s } = await processMessage(session, 'no problem');
-  assert.equal(s.state, 'awaiting_telegram'); // flow preserved
+  assert.equal(s.state, 'awaiting_discord'); // flow preserved
 });
 
 // ---- NEW SCENARIOS: full job details, job lists, interest handling, field guards ----
@@ -757,7 +757,7 @@ test('INTEREST: "mein interested hu" from idle goes to Hinglish pitch', async ()
   assert.equal(s.lang, 'hi');
   assert.equal(s.state, 'awaiting_apply_decision');
   assert.match(reply, /WhatsApp/); // INTENT_10 pitch
-  assert.match(reply, /Telegram account banana parega/); // INTENT_10 transition line
+  assert.match(reply, /Discord account banana parega/); // INTENT_10 transition line
 });
 
 test('INTEREST: "i am interested in data entry" names the job and pitches', async () => {
@@ -812,7 +812,7 @@ test('INTEREST: "main apply karna chahta hoon" at confirm re-asks confirm, no su
   await processMessage(session, 'haan');
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
-  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  await processMessage(session, 'ali_raza'); // → awaiting_confirm
   const before = submissions.length;
   const { reply, session: s } = await processMessage(session, 'main apply karna chahta hoon');
   assert.equal(s.state, 'awaiting_apply_decision');
@@ -907,7 +907,7 @@ test('FIELD: job changed at confirm captures the new job, confirm re-asked', asy
   await processMessage(session, 'haan');
   await processMessage(session, 'Ali Raza');
   await processMessage(session, '03001234567');
-  await processMessage(session, '@ali_r'); // → awaiting_confirm
+  await processMessage(session, 'ali_raza'); // → awaiting_confirm
   const before = submissions.length;
   const { reply, session: s } = await processMessage(session, 'video editing job karna hai');
   assert.equal(s.job, 'Video Editing Job'); // job captured

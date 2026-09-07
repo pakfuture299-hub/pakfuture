@@ -25,7 +25,7 @@ const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === './openai' || request === '../openai') {
     return {
-      classifyIntent: async () => ({ intent: 'out_of_scope', telegramHelpRequested: false }),
+      classifyIntent: async () => ({ intent: 'out_of_scope', discordHelpRequested: false }),
       askGrounded: async () => ({ text: 'STUB_SHOULD_NEVER_RUN' }),
     };
   }
@@ -88,8 +88,8 @@ test('sentence variations of each trigger still resolve to the exact PDF script'
     { intent: 'INTENT_08_REQUIREMENTS', phrases: ['qualification kia chahiye?', 'qualification chahiye', 'parhai kitni chahiye?', 'age limit?', 'experience chahiye?', 'kaun kar sakta hai?', 'study requirement?', 'do i need experience?'] },
     { intent: 'INTENT_09_REGISTRATION_FEE', phrases: ['fees hai?', 'investment hai?', 'paisa dena parega?', 'registration charge?', 'free hai?', 'free job?', 'is there a fee?', 'do i have to pay?'] },
     { intent: 'INTENT_10_JOB_SELECTION', phrases: ['data entry', 'graphic designer', 'video watch', 'assignment writing', 'yeh job chahiye', 'is mein interested hoon', 'graphic design', 'amazon fba', 'i want to apply for data entry'] },
-    { intent: 'INTENT_11_TELEGRAM_GUIDANCE', phrases: ['guide karo', 'kaise banana hai?', 'mujhe nahi aata', 'process batao', 'tarika batao', 'help karo', 'telegram nahi pata', 'setup kaise karein?'] },
-    { intent: 'INTENT_12_TELEGRAM_CONFIRMATION', phrases: ['telegram account done', 'account setup kar liya hai', 'bana liya hai', 'done', 'account ban gaya'] },
+    { intent: 'INTENT_11_DISCORD_GUIDANCE', phrases: ['guide karo', 'kaise banana hai?', 'mujhe nahi aata', 'process batao', 'tarika batao', 'help karo', 'discord nahi pata', 'setup kaise karein?'] },
+    { intent: 'INTENT_12_DISCORD_CONFIRMATION', phrases: ['discord account done', 'account setup kar liya hai', 'bana liya hai', 'done', 'account ban gaya'] },
   ];
 
   const failures = [];
@@ -137,7 +137,7 @@ test('word boundaries: short triggers do not match inside longer words', async (
   const noFalsePositive = [
     'nahi',                       // contains "hi" as substring -> must NOT be INTENT_01
     'chahiye',                    // contains "hi" -> must NOT be welcome
-    'mujhe telegram nahi pata',   // contains "hi" in "nahi" -> must be INTENT_11 (or help)
+    'mujhe discord nahi pata',  // contains "hi" in "nahi" -> must be INTENT_11 (or help)
     'kaam kaise hota hai',        // generic, not a listed trigger
   ];
   for (const phrase of noFalsePositive) {
@@ -147,8 +147,8 @@ test('word boundaries: short triggers do not match inside longer words', async (
     if (['nahi', 'chahiye'].includes(phrase)) {
       assert.notEqual(r.reply, INTENTS[0].reply, `"${phrase}" must not match INTENT_01 welcome`);
     }
-    // "mujhe telegram nahi pata" must be the Telegram guidance (INTENT_11).
-    if (phrase === 'mujhe telegram nahi pata') {
+    // "mujhe discord nahi pata" must be the Discord guidance (INTENT_11).
+    if (phrase === 'mujhe discord nahi pata') {
       assert.ok(r.reply.startsWith(INTENTS[10].reply), `"${phrase}" must be INTENT_11 guidance`);
     }
   }
@@ -162,7 +162,7 @@ test('user-reported regression cases reply exactly per the PDF', async () => {
     { input: 'qualification chahiye', intentId: 'INTENT_08_REQUIREMENTS' },
     { input: 'hi', intentId: 'INTENT_01_WELCOME' },
     { input: 'salary kitni milegi', intentId: 'INTENT_04_PAYMENT_GUARANTEE' },
-    { input: 'telegram nahi pata', intentId: 'INTENT_11_TELEGRAM_GUIDANCE' },
+    { input: 'telegram nahi pata', intentId: 'INTENT_11_DISCORD_GUIDANCE' },
   ];
   const failures = [];
   for (const { input, intentId } of cases) {

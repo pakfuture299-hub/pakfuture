@@ -53,9 +53,9 @@ const config = {
     timeoutMs: toInt(fromEnv('OPENAI_TIMEOUT_MS', { fallback: '15000' }), 15000),
   },
 
-  // The single Telegram invite link the widget hands out.
-  inviteLink: fromEnv('INVITE_LINK', {
-    fallback: 'https://t.me/+923244362726',
+  // The Discord team username the widget/app hands out (from the client PDF).
+  discordUsername: fromEnv('DISCORD_USERNAME', {
+    fallback: 'bukhtiyaarhussainbranch2050',
   }),
 
   n8n: {

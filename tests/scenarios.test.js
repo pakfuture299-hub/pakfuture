@@ -23,7 +23,7 @@ const submissions = [];
 Module._load = function (request, parent, isMain) {
   if (request === './openai' || request === '../openai') {
     return {
-      classifyIntent: async () => ({ intent: 'out_of_scope', telegramHelpRequested: false }),
+      classifyIntent: async () => ({ intent: 'out_of_scope', discordHelpRequested: false }),
       askGrounded: async () => ({ text: 'STUB_SHOULD_NEVER_RUN' }),
     };
   }
@@ -33,7 +33,7 @@ Module._load = function (request, parent, isMain) {
         submissions.push({
           name: session.name,
           phone: session.phone,
-          telegram: session.telegram,
+          discord: session.discord,
           job: session.job || '',
           timestamp: new Date().toISOString(),
           source: 'Job Portal Global',
@@ -65,8 +65,8 @@ const SCENARIOS = [
   ['INTENT_08_REQUIREMENTS', ['qualification kia chahiye', 'qualification chahiye', 'parhai kitni chahiye', 'age limit', 'experience chahiye', 'kaun kar sakta hai', 'study requirement', 'do i need experience']],
   ['INTENT_09_REGISTRATION_FEE', ['fees hai', 'investment hai', 'paisa dena parega', 'registration charge', 'free hai', 'free job', 'is there a fee', 'do i have to pay', 'is it free']],
   ['INTENT_10_JOB_SELECTION', ['data entry', 'content writing', 'video watch', 'graphic designer', 'amazon va', 'assignment writing', 'yeh job chahiye', 'is mein interested hoon', 'graphic design', 'video editing', 'amazon fba', 'i want to apply for data entry']],
-  ['INTENT_11_TELEGRAM_GUIDANCE', ['guide karo', 'kaise banana hai', 'mujhe nahi aata', 'process batao', 'tarika batao', 'help karo', 'guide me', 'setup kaise karein', 'telegram nahi pata']],
-  ['INTENT_12_TELEGRAM_CONFIRMATION', ['telegram account done', 'account setup kar liya hai', 'bana liya hai', 'done', 'account ban gaya', 'telegram ban gaya', 'setup done', 'account ready hai']],
+  ['INTENT_11_DISCORD_GUIDANCE', ['guide karo', 'kaise banana hai', 'mujhe nahi aata', 'process batao', 'tarika batao', 'help karo', 'guide me', 'setup kaise karein', 'discord nahi pata']],
+  ['INTENT_12_DISCORD_CONFIRMATION', ['discord account done', 'account setup kar liya hai', 'bana liya hai', 'done', 'account ban gaya', 'discord ban gaya', 'setup done', 'account ready hai']],
 ];
 
 test('SCENARIO SWEEP: every PDF intent × every trigger → EXACT reply (worst-case AI)', async () => {
@@ -101,7 +101,7 @@ test('SCENARIO: mid-field questions are answered and the field re-asked (flow ne
     { field: 'awaiting_name', msg: 'is it safe?', expectField: 'name|naam' },
     { field: 'awaiting_phone', msg: 'qualification chahiye', expectField: 'number|phone' },
     { field: 'awaiting_phone', msg: 'is my data safe?', expectField: 'number|phone' },
-    { field: 'awaiting_telegram', msg: 'konsi jobs hain?', expectField: 'telegram' },
+    { field: 'awaiting_discord', msg: 'konsi jobs hain?', expectField: 'discord' },
     { field: 'awaiting_confirm', msg: 'data entry', expectField: 'confirm|Yes|Haan' },
   ];
   const failures = [];
@@ -129,7 +129,7 @@ test('SCENARIO: full guided flow with mid-flow safety question → Google Sheet 
     'Ali Raza',                  // name
     'is my data safe with you?', // safety mid-phone -> INTENT_03 + phone re-ask
     '03001234567',               // phone
-    '@ali_r',                    // telegram
+    'ali_raza',                  // discord username
     'yes',                       // confirm -> submit
   ];
   let lastState = '';
@@ -142,7 +142,7 @@ test('SCENARIO: full guided flow with mid-flow safety question → Google Sheet 
   const sub = submissions[0];
   assert.equal(sub.name, 'Ali Raza');
   assert.equal(sub.phone, '03001234567');
-  assert.equal(sub.telegram, '@ali_r');
+  assert.equal(sub.discord, 'ali_raza');
   assert.equal(sub.job, 'Data Entry');
   assert.ok(sub.source && sub.timestamp, 'Google Sheet contract needs source + timestamp');
 });
@@ -202,7 +202,7 @@ test('KEYWORD LAYER: ambiguous words must NOT false-positive', async () => {
   // "job" alone must not trigger any knowledge intent.
   const cases = [
     { input: 'mujhe nahi pata', notIntentId: 'INTENT_07_OFFICE_LOCATION' },
-    { input: 'telegram nahi pata', notIntentId: 'INTENT_07_OFFICE_LOCATION' },
+    { input: 'discord nahi pata', notIntentId: 'INTENT_07_OFFICE_LOCATION' },
   ];
   for (const { input, notIntentId } of cases) {
     const s = createSession();

@@ -3,7 +3,7 @@
  *
  * Uses pdfkit (devDependency only) — pure JS, no browser required.
  * The markdown here is the generated rendering of the client's
- * Job_Portal_Bot_System_Architecture.pdf, so parsing is intentionally simple:
+ * Untitled.pdf, so parsing is intentionally simple:
  * headings (#/##/###), blockquotes (>), fenced blocks (```), and paragraphs.
  * List markers (-, *, numbered) are rendered as plain paragraphs with a
  * leading bullet.

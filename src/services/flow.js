@@ -9,13 +9,13 @@
  * Flow states (matches the product-owner spec):
  *   idle                    → short greeting + "how can I help?" (no pitch)
  *   (job Q&A via askGrounded — no pitch, no links)
- *   awaiting_interest       → after job interest: pitch (why Telegram) +
- *                             tutorial links (VPN/app/video) → "want to apply?"
+ *   awaiting_interest       → after job interest: pitch (why Discord) +
+ *                             tutorial links (app/video) → "want to apply?"
  *   awaiting_apply_decision → yes → collect details; no → polite close
  *   awaiting_name           → collect full name
  *   awaiting_phone          → collect contact number
- *   awaiting_telegram       → collect Telegram username/number
- *   awaiting_confirm        → confirm details → submit → invite link + done
+ *   awaiting_discord        → collect Discord username
+ *   awaiting_confirm        → confirm details → submit → team username + done
  *   done                    → soft "already submitted" reply
  *
  * Language: if the candidate writes in Roman Urdu/Hinglish the replies switch
@@ -36,7 +36,7 @@ const {
 const {
   isValidName,
   isValidPhone,
-  isValidTelegram,
+  isValidDiscordUsername,
   normalizeText,
   isRedirectTrigger,
 } = require('../utils/validation');
@@ -74,7 +74,7 @@ const KNOWLEDGE_INTENT_IDS = new Set([
   'INTENT_07_OFFICE_LOCATION',
   'INTENT_08_REQUIREMENTS',
   'INTENT_09_REGISTRATION_FEE',
-  'INTENT_11_TELEGRAM_GUIDANCE',
+  'INTENT_11_DISCORD_GUIDANCE',
 ]);
 
 /**
@@ -167,7 +167,7 @@ function isNo(text) {
  * interested", "i want to apply", "mein interested hu", "main apply karna
  * chahta hoon" etc. Checked in EVERY state (idle, after a job answer, even
  * mid field collection) so an interest statement is never mistaken for a
- * name / phone / telegram.
+ * name / phone / discord username.
  */
 function isInterested(text) {
   const t = normalizeText(text).toLowerCase();
@@ -210,7 +210,7 @@ function isAskingJobList(text) {
 /**
  * True when a message clearly is NOT a personal-details answer while a field
  * is being collected — greetings, yes/no, sentiments, question words, small
- * talk. Such a message must never be stored as a name / phone / telegram.
+ * talk. Such a message must never be stored as a name / phone / discord.
  * Returns true for "hi", "yes", "no", "ok", "how are you", "what?", etc.
  */
 function isFieldNonAnswer(text) {
@@ -236,13 +236,13 @@ function isCancelling(text) {
 }
 
 /**
- * True when the candidate is asking about Telegram setup / says they don't
- * have Telegram — checked deterministically so a misclassified help request
+ * True when the candidate is asking about Discord setup / says they don't
+ * have Discord — checked deterministically so a misclassified help request
  * during the flow still gets the setup guide instead of a validation error.
  */
-function asksTelegramHelp(text) {
+function asksDiscordHelp(text) {
   const t = normalizeText(text).toLowerCase();
-  return /(telegram (nahi|nhi|how|kya|install|download|setup|banao|banana|kaise|kya hai|aata|aati)|nahi (hai|pata).*telegram|nhi (hai|pata).*telegram|telegram.*(nahi|nhi)|how (to )?(install|use|join|make).*telegram|telegram account)/.test(t);
+  return /(discord (nahi|nhi|how|kya|install|download|setup|banao|banana|kaise|kya hai|aata|aati)|nahi (hai|pata).*discord|nhi (hai|pata).*discord|discord.*(nahi|nhi)|how (to )?(install|use|join|make|create).*discord|discord account|make discord|create discord|discord kya hai|discord kaise|discord account nahi)/.test(t);
 }
 
 /**
@@ -357,7 +357,7 @@ function matchJob(text) {
 
 /**
  * A friendly answer when a candidate asks about a specific job. The PDF's
- * INTENT_10 (Job Selection & Telegram Transition) is the only per-job
+ * INTENT_10 (Job Selection & Discord Transition) is the only per-job
  * response script it defines, so a job question is answered with that intent
  * + the full jobs list (so the candidate sees the options).
  */
@@ -372,7 +372,7 @@ function createSession() {
     lang: 'en',
     name: null,
     phone: null,
-    telegram: null,
+    discord: null,
     job: null, // canonical job name the candidate is interested in
     updatedAt: Date.now(),
   };
@@ -389,14 +389,14 @@ function fieldReask(session) {
   switch (session.state) {
     case 'awaiting_name': return R.askName;
     case 'awaiting_phone': return R.askPhone;
-    case 'awaiting_telegram': return R.askTelegram;
+    case 'awaiting_discord': return R.askDiscord;
     case 'awaiting_confirm': return R.confirmPrompt;
     default: return null;
   }
 }
 
-/** The Telegram setup guide — INTENT_11 verbatim from the PDF. */
-function telegramHelpReply(session) {
+/** The Discord setup guide — INTENT_11 verbatim from the PDF. */
+function discordHelpReply(session) {
   return INTENTS[10].reply;
 }
 
@@ -409,7 +409,7 @@ function shortGreetingReply(session) {
 }
 
 /**
- * The interest → pitch step: INTENT_10's exact PDF script (why Telegram, the
+ * The interest → pitch step: INTENT_10's exact PDF script (why Discord, the
  * WhatsApp comparison, account-setup question) followed by the apply
  * decision question. No extra ack, no extra prompts — only the PDF script +
  * the flow's apply question.
@@ -424,13 +424,13 @@ function notInterestedReply(session) {
   return rulesFor(session).notInterested;
 }
 
-/** Final reply after a successful submission: invite link + confirmation. */
+/** Final reply after a successful submission: team contact username + confirmation. */
 function submittedReply(session) {
   const R = rulesFor(session);
   return (
     R.submitted +
     '\n\n' +
-    R.inviteLinkLine
+    R.teamContactLine
   );
 }
 
@@ -442,7 +442,7 @@ function extractFieldAnswer(message, field) {
 }
 
 /**
- * Handle a side-question (job details, knowledge, security, telegram help)
+ * Handle a side-question (job details, knowledge, security, discord help)
  * that arrives mid field-collection: answer it, then re-ask the field so the
  * application flow is never lost. Returns null when the message isn't a
  * side-question (i.e. it's a real field answer or invalid input).
@@ -453,8 +453,8 @@ async function sideQuestionInField(session, message) {
     // PDF-exact trust answer (INTENT_03), then re-ask the field.
     return INTENTS[2].reply + '\n\n' + fieldReask(session);
   }
-  if (asksTelegramHelp(message)) {
-    return telegramHelpReply(session) + '\n\n' + fieldReask(session);
+  if (asksDiscordHelp(message)) {
+    return discordHelpReply(session) + '\n\n' + fieldReask(session);
   }
   // Job names ("what is data entry?") and knowledge questions ("how much can
   // i earn?") are answered from the knowledge base.
@@ -462,7 +462,7 @@ async function sideQuestionInField(session, message) {
     const answer = await answerQuestion(session, message);
     if (answer === null) return null;
     if (answer.applyFlow) return null; // "i want to apply" — handled by state
-    if (answer.telegramHelp) return telegramHelpReply(session) + '\n\n' + fieldReask(session);
+    if (answer.discordHelp) return discordHelpReply(session) + '\n\n' + fieldReask(session);
     return answer + '\n\n' + fieldReask(session);
   }
   return null;
@@ -472,7 +472,7 @@ async function sideQuestionInField(session, message) {
  * Build a grounded answer about a job (or general knowledge) and attach the
  * matched job to the session. Answers ONLY from the PDF intents — the exact
  * script, never model-generated text. Returns the reply string, an
- * { applyFlow } / { telegramHelp } sentinel, or null when out of scope.
+ * { applyFlow } / { discordHelp } sentinel, or null when out of scope.
  */
 async function answerQuestion(session, message) {
   // Deterministic PDF intent match first — the PDF's trigger keywords are the
@@ -486,7 +486,7 @@ async function answerQuestion(session, message) {
       return pdfMatch.intent.reply;
     }
     if (pdfMatch.intent.id === 'INTENT_05_DIRECT_APPLY') return { applyFlow: true };
-    if (pdfMatch.intent.id === 'INTENT_11_TELEGRAM_GUIDANCE') return { telegramHelp: true };
+    if (pdfMatch.intent.id === 'INTENT_11_DISCORD_GUIDANCE') return { discordHelp: true };
     return pdfMatch.intent.reply;
   }
   // Deterministic "which jobs are available?" (INTENT_02) — never rely on the model.
@@ -564,9 +564,9 @@ async function processMessage(session, message) {
     session.state = 'awaiting_interest';
     return { reply: pdfMatch.intent.reply, session };
   }
-  // INTENT_12 (Telegram Setup Confirmation) — "telegram account done" etc.
-  // The candidate finished setup: hand over the exact PDF script (direct link).
-  if (pdfMatch && pdfMatch.intent.id === 'INTENT_12_TELEGRAM_CONFIRMATION') {
+  // INTENT_12 (Discord Setup Confirmation) — "discord account done" etc.
+  // The candidate finished setup: hand over the exact PDF script (team username).
+  if (pdfMatch && pdfMatch.intent.id === 'INTENT_12_DISCORD_CONFIRMATION') {
     return { reply: pdfMatch.intent.reply, session };
   }
   // SECURITY / TRUST questions take priority over a job-name match: "is data
@@ -576,10 +576,10 @@ async function processMessage(session, message) {
     const reask = fieldReask(session);
     return { reply: reask ? INTENTS[2].reply + '\n\n' + reask : INTENTS[2].reply, session };
   }
-  // INTENT_10 (Job Selection & Telegram Transition) — the candidate picks a
+  // INTENT_10 (Job Selection & Discord Transition) — the candidate picks a
   // job ("data entry", "graphic designer", "yeh job chahiye", "is mein
   // interested hoon"). Reply with the EXACT PDF script (which explains the
-  // Telegram transition), capture the chosen job, and move the flow to the
+  // Discord transition), capture the chosen job, and move the flow to the
   // apply decision. In a field-collection state, answer + re-ask the field so
   // the application is never lost.
   if (pdfMatch && pdfMatch.intent.id === 'INTENT_10_JOB_SELECTION') {
@@ -630,7 +630,7 @@ async function processMessage(session, message) {
   // The reply is INTENT_02's EXACT PDF script — nothing appended outside a
   // field-collection state.
   if (isAskingJobList(text)) {
-    if (['awaiting_name', 'awaiting_phone', 'awaiting_telegram', 'awaiting_confirm'].includes(session.state)) {
+    if (['awaiting_name', 'awaiting_phone', 'awaiting_discord', 'awaiting_confirm'].includes(session.state)) {
       return { reply: jobsListReply(session.lang) + '\n\n' + fieldReask(session), session };
     }
     if (session.state === 'awaiting_apply_decision') {
@@ -652,11 +652,11 @@ async function processMessage(session, message) {
     return { reply: pitchAndAskReply(session), session };
   }
 
-  // Universal Telegram-help fallback — checked before the model so a
-  // misclassified "telegram nahi pata" during the flow never lands in a
+  // Universal Discord-help fallback — checked before the model so a
+  // misclassified "discord nahi pata" during the flow never lands in a
   // validation-error loop.
-  if (asksTelegramHelp(text)) {
-    return { reply: telegramHelpReply(session), session };
+  if (asksDiscordHelp(text)) {
+    return { reply: discordHelpReply(session), session };
   }
 
   // Universal security-reassurance fallback — a candidate who raises a
@@ -674,7 +674,7 @@ async function processMessage(session, message) {
   if (
     isNo(text) &&
     !/(no (problem|worries|issue|prob|thanks to you))/.test(text) &&
-    ['awaiting_name', 'awaiting_phone', 'awaiting_telegram', 'awaiting_confirm'].includes(session.state)
+    ['awaiting_name', 'awaiting_phone', 'awaiting_discord', 'awaiting_confirm'].includes(session.state)
   ) {
     session.state = 'done';
     return { reply: notInterestedReply(session), session };
@@ -691,10 +691,10 @@ async function processMessage(session, message) {
     return { reply: reask ? R[sentiment] + '\n\n' + reask : R[sentiment], session };
   }
 
-  // Re-route Telegram help requests at any point in the flow.
+  // Re-route Discord help requests at any point in the flow.
   const intent = await classifyIntent(text);
-  if (intent.telegramHelpRequested || intent.intent === 'telegram_help') {
-    return { reply: telegramHelpReply(session), session };
+  if (intent.discordHelpRequested || intent.intent === 'discord_help') {
+    return { reply: discordHelpReply(session), session };
   }
 
   switch (session.state) {
@@ -710,8 +710,8 @@ async function processMessage(session, message) {
           } else if (answer.applyFlow) {
             reply = pitchAndAskReply(session);
             session.state = 'awaiting_apply_decision';
-          } else if (answer.telegramHelp) {
-            reply = telegramHelpReply(session);
+          } else if (answer.discordHelp) {
+            reply = discordHelpReply(session);
           } else {
             // EXACT PDF script — nothing appended.
             reply = answer;
@@ -731,8 +731,8 @@ async function processMessage(session, message) {
         } else if (answer.applyFlow) {
           reply = pitchAndAskReply(session);
           session.state = 'awaiting_apply_decision';
-        } else if (answer.telegramHelp) {
-          reply = telegramHelpReply(session);
+        } else if (answer.discordHelp) {
+          reply = discordHelpReply(session);
         } else {
           // EXACT PDF script — nothing appended.
           reply = answer;
@@ -747,8 +747,8 @@ async function processMessage(session, message) {
         } else if (answer.applyFlow) {
           reply = pitchAndAskReply(session);
           session.state = 'awaiting_apply_decision';
-        } else if (answer.telegramHelp) {
-          reply = telegramHelpReply(session);
+        } else if (answer.discordHelp) {
+          reply = discordHelpReply(session);
         } else {
           // EXACT PDF script — nothing appended.
           reply = answer;
@@ -768,7 +768,7 @@ async function processMessage(session, message) {
           session.state = 'awaiting_apply_decision';
           return { reply: pitchAndAskReply(session), session };
         }
-        if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
+        if (answer.discordHelp) return { reply: discordHelpReply(session), session };
         return { reply: answer, session };
       }
       // "no" to the interest prompt → polite close, not the pitch.
@@ -791,7 +791,7 @@ async function processMessage(session, message) {
           session.state = 'awaiting_apply_decision';
           return { reply: pitchAndAskReply(session), session };
         }
-        if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
+        if (answer.discordHelp) return { reply: discordHelpReply(session), session };
         // EXACT PDF script — nothing appended.
         return { reply: answer, session };
       }
@@ -829,7 +829,7 @@ async function processMessage(session, message) {
         const answer = await defensiveAnswer(session, message);
         if (answer === null) return { reply: rulesFor(session).outOfScopeRedirect, session };
         if (answer.applyFlow) return { reply: pitchAndAskReply(session), session };
-        if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
+        if (answer.discordHelp) return { reply: discordHelpReply(session), session };
         return { reply: answer, session };
       }
       // A follow-up question while waiting for yes/no ("konsi jobs hain?")
@@ -838,7 +838,7 @@ async function processMessage(session, message) {
         const answer = await answerQuestion(session, message);
         if (answer === null) return { reply: rulesFor(session).outOfScopeRedirect, session };
         if (answer.applyFlow) return { reply: pitchAndAskReply(session), session };
-        if (answer.telegramHelp) return { reply: telegramHelpReply(session), session };
+        if (answer.discordHelp) return { reply: discordHelpReply(session), session };
         // EXACT PDF script — nothing appended.
         return { reply: answer, session };
       }
@@ -918,39 +918,39 @@ async function processMessage(session, message) {
         return { reply: rulesFor(session).phoneInvalid, session };
       }
       session.phone = raw;
-      session.state = 'awaiting_telegram';
-      return { reply: rulesFor(session).askTelegram, session };
+      session.state = 'awaiting_discord';
+      return { reply: rulesFor(session).askDiscord, session };
     }
 
-    case 'awaiting_telegram': {
-      // The candidate may name a job instead of a Telegram id — capture it
-      // and keep asking for the Telegram username/number.
+    case 'awaiting_discord': {
+      // The candidate may name a job instead of a Discord username — capture
+      // it and keep asking for the Discord username.
       const matchedJob = matchJob(text);
       if (matchedJob) {
         session.job = matchedJob.name;
         const ack = session.lang === 'hi'
           ? `Theek hai — ${matchedJob.name} ke liye apply! 👍`
           : `Got it — applying for ${matchedJob.name}! 👍`;
-        return { reply: ack + '\n\n' + rulesFor(session).askTelegram, session };
+        return { reply: ack + '\n\n' + rulesFor(session).askDiscord, session };
       }
-      // Never store a greeting, yes/no, sentiment, or question as a Telegram id.
+      // Never store a greeting, yes/no, sentiment, or question as a Discord id.
       if (isFieldNonAnswer(text)) {
-        return { reply: rulesFor(session).telegramInvalid, session };
+        return { reply: rulesFor(session).discordInvalid, session };
       }
       // Side-question (security, job details, knowledge) → answer + re-ask.
       const side = await sideQuestionInField(session, message);
       if (side) return { reply: side, session };
-      const raw = extractFieldAnswer(message, 'telegram');
-      if (raw === EMPTY_ANSWER_SENTINEL || !isValidTelegram(raw)) {
-        return { reply: rulesFor(session).telegramInvalid, session };
+      const raw = extractFieldAnswer(message, 'discord');
+      if (raw === EMPTY_ANSWER_SENTINEL || !isValidDiscordUsername(raw)) {
+        return { reply: rulesFor(session).discordInvalid, session };
       }
-      session.telegram = raw;
+      session.discord = raw;
       session.state = 'awaiting_confirm';
       const R = rulesFor(session);
       const confirm =
         R.confirmHeader +
         (session.job ? `\n• Job: ${session.job}` : '') +
-        `\n• Name: ${session.name}\n• Phone: ${session.phone}\n• Telegram: ${session.telegram}` +
+        `\n• Name: ${session.name}\n• Phone: ${session.phone}\n• Discord: ${session.discord}` +
         `\n\n${R.confirmPrompt}`;
       return { reply: confirm, session };
     }
@@ -972,7 +972,7 @@ async function processMessage(session, message) {
             ack +
             '\n\n' +
             R.confirmHeader +
-            `\n• Job: ${session.job}\n• Name: ${session.name}\n• Phone: ${session.phone}\n• Telegram: ${session.telegram}` +
+            `\n• Job: ${session.job}\n• Name: ${session.name}\n• Phone: ${session.phone}\n• Discord: ${session.discord}` +
             `\n\n${R.confirmPrompt}`,
           session,
         };
@@ -1008,10 +1008,10 @@ async function processMessage(session, message) {
         session.state = 'awaiting_phone';
         return { reply: rulesFor(session).askPhone, session };
       }
-      if (/telegram/i.test(lower)) {
-        session.telegram = null;
-        session.state = 'awaiting_telegram';
-        return { reply: rulesFor(session).askTelegram, session };
+      if (/discord/i.test(lower)) {
+        session.discord = null;
+        session.state = 'awaiting_discord';
+        return { reply: rulesFor(session).askDiscord, session };
       }
       return { reply: rulesFor(session).confirmPrompt, session };
     }
@@ -1043,7 +1043,7 @@ module.exports = {
   isInterested,
   isAskingJobList,
   isCancelling,
-  asksTelegramHelp,
+  asksDiscordHelp,
   asksSecurity,
   matchJob,
 };
