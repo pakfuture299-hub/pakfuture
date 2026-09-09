@@ -21,7 +21,7 @@
   // The pointer file below is the preferred source (updated by the VPS
   // whenever the tunnel restarts); API_BASE is only a fallback for when
   // the pointer cannot be fetched.
-  var API_BASE = 'https://examines-dns-collecting-clip.trycloudflare.com';
+  var API_BASE = 'https://usc-productions-faces-relation.trycloudflare.com';
   // ------------------------------------------------------------
 
   // Stable pointer file (multi-source so a stale CDN cache never strands
