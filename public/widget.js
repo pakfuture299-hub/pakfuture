@@ -174,22 +174,24 @@
     });
   }
 
-  async function fetchPointerText() {
-    for (var i = 0; i < POINTER_URLS.length; i++) {
-      try {
-        var res = await fetch(POINTER_URLS[i], { cache: 'no-store' });
-        if (!res.ok) continue;
-        var text = await res.text();
-        if (text && /^https?:\/\//.test(text.trim())) return text.trim();
-      } catch (err) { /* try next source */ }
-    }
+  async function readPointer(url) {
+    try {
+      var res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) return '';
+      var text = await res.text();
+      if (text && /^https?:\/\//.test(text.trim())) return text.trim();
+    } catch (err) { /* try next source */ }
     return '';
   }
 
   async function getApiBase() {
     if (cachedApiBase) return cachedApiBase;
-    var text = await fetchPointerText();
-    if (text) {
+    // Health-check EVERY source on its own. GitHub Pages and raw can lag
+    // each other after a tunnel restart, so a stale (dead) URL from the
+    // first source must never shadow a fresh one from the next.
+    for (var i = 0; i < POINTER_URLS.length; i++) {
+      var text = await readPointer(POINTER_URLS[i]);
+      if (!text) continue;
       var base = text.replace(/\/+$/, '');
       if (await ping(base)) {
         cachedApiBase = base;
